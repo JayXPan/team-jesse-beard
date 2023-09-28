@@ -1,2 +1,7 @@
-# team-jesse-beard
-Collaborative project repository for Fall 2023 CSE312 Team Jesse Beard
+# Jesse Beard Team Project
+
+## Description
+Collaborative project repository for CSE312 Fall 2023 Team Jesse Beard
+
+## Team Members
+1) Jay Pan (Jpan26)
