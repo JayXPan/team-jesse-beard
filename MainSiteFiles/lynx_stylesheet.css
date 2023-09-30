@@ -1,0 +1,159 @@
+@charset "utf-8";
+
+html{
+	background-image: url("../images/great_wave.jpg");
+	background-attachment: fixed;
+	height: 100%;
+}
+body{
+	background-color: white;
+   	min-height: 100%;   
+   	margin: 0px auto;  
+   	width: 80%;
+   	font-family: sans-serif;
+}
+	
+header{
+	padding-top: 20px;
+	padding-bottom: 20px;
+	background-image: linear-gradient(black, rgb(167, 0, 192));
+}
+header > nav > ul > li > a{
+	display: block;
+	text-align: center;
+	width: 100%;
+	padding: 10px;
+	font-family: Tahoma, sans-serif;
+	text-decoration: none;
+	transform: scale(1, 1) translateY(0px);
+	transition: all 0.3s linear;
+}
+header > nav > ul > li > h1{
+	display: table-row;
+	font-family: Arial, sans-serif;
+	color: white;
+	text-shadow: 2px 2px 3px black;
+}
+nav > ul {
+	display: table-row;
+}
+nav > ul > li > a:link{
+	color: white;
+	text-shadow: 2px 2px 3px black;
+}
+nav > ul > li > a:visited{
+	color: white;
+}
+nav > ul > li > a:hover{
+	color: white;
+	text-shadow: 0px 5px 10px rgb(220, 32, 255);
+	background-color: black;
+	border-radius: 10px;
+	transform: scale(1.1, 1.1);
+}
+header > nav {
+	display: table;
+	width: 95%;
+}
+nav > ul > li {
+	display: table-cell;
+	text-align: center;
+	padding-left: 20px;
+}
+article > p{
+	padding-left: 2em;
+	padding-right:2em;
+	font-family: Tahoma, sans-serif;
+}
+
+.hero-section{
+	background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("../images/conti.jpg");
+	height: 200px;
+	/*Hero Section Referenced from W3Schools "Hero Image"*/
+	background-position: center;
+  	background-repeat: no-repeat;
+  	background-size: cover;
+  	position: relative;
+}
+.hero-text{
+	width: 75%;
+	font-family: sans-serif;
+	top: 50%;
+  	left: 50%;
+  	transform: translate(-50%, -50%);
+	text-align: center;
+	position: absolute;
+	color: white;
+	text-shadow: 2px 2px 3px black;
+}
+.hero-subtitle{
+	width: 75%;
+	font-family: sans-serif;
+	top: 50%;
+  	left: 50%;
+  	transform: translate(-50%, 20%);
+	text-align: center;
+	position: absolute;
+	color: white;
+	text-shadow: 2px 2px 3px black;
+}
+#currentTime{
+	color: rgb(220,220,220);
+	text-shadow: 2px 2px 3px black;
+	padding-left: 15px;
+	transform: translate(0%, 400%);
+}
+footer{
+	position: relative;
+	padding-top: 20px;
+	padding-bottom: 20px;
+  	bottom: 0;
+  	background-color: black;
+  	clear: both;
+}
+footer > aside{
+	color: gray;
+  	font-family: Tahoma, sans-serif;
+  	text-align: right;
+  	padding-left: 30px;
+  	padding-right: 30px;
+}
+
+.loadin .hero-text{
+	opacity: 0;
+}
+.hero-text{
+	opacity: 1;
+	transition: opacity 600ms ease-in;
+}
+
+.loadin .hero-subtitle{
+	opacity: 0;
+}
+.hero-subtitle{
+	opacity: 1;
+	transition: opacity 600ms ease-in;
+}
+
+body{
+	box-shadow: rgb(220, 32, 255) 10px 10px 50px;
+	transition: box-shadow 600ms ease-in;
+}
+
+@keyframes rgb{
+	0%   {box-shadow: rgb(220, 32, 255) 10px 10px 50px;}
+	14% {box-shadow: red 10px 10px 50px;}
+	28% {box-shadow: orange 10px 10px 50px;}
+	42% {box-shadow: yellow 10px 10px 50px;}
+	56% {box-shadow: green 10px 10px 50px;}
+	70% {box-shadow: blue 10px 10px 50px;}
+	84% {box-shadow: indigo 10px 10px 50px;}
+	100% {box-shadow: rgb(220, 32, 255) 10px 10px 50px;}
+}
+
+.gamer body{
+	animation-name: rgb;
+	animation-duration: 3s;
+	animation-timing-function: linear;
+	animation-iteration-count: 1;
+}
