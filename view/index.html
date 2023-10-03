@@ -10,6 +10,8 @@
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_home.css">
 	<script src="static/js/date_and_time.js" defer></script>
 	<script src="static/js/animations.js"></script>
+	<script src="static/js/modal.js"></script>
+	<script src="static/js/auth.js" defer></script>
 
 	<link rel="icon" href="static/favicon.ico" type="image/x-icon">
 
@@ -21,10 +23,37 @@
 		<nav>
 			<ul>
 				<li id="mainTitle"><h1><i>CSE 312 Project 1</i></h1></li>
+				<div id="usernameDisplay">
+					Logged in as: <span id="usernameText">{{ username }}</span>
+				</div>
 			</ul>
 		</nav>
 
 	</header>
+
+	<div class="auth-section">
+		<div class="registration">
+			<h2>Register</h2>
+			<form action="/register/" method="POST">
+				<label for="registerUsername">Username:</label><br>
+				<input type="text" id="registerUsername" name="username" required><br><br>
+				<label for="registerPassword">Password:</label><br>
+				<input type="password" id="registerPassword" name="password" required><br><br>
+				<input type="submit" value="Register">
+			</form>
+		</div>
+	
+		<div class="login">
+			<h2>Login</h2>
+			<form action="/login/" method="POST">
+				<label for="loginUsername">Username:</label><br>
+				<input type="text" id="loginUsername" name="username" required><br><br>
+				<label for="loginPassword">Password:</label><br>
+				<input type="password" id="loginPassword" name="password" required><br><br>
+				<input type="submit" value="Login">
+			</form>
+		</div>
+	</div>
 
 	<div class="hero-section">
 		<div class="hero-text"><h1>Kinkerton Nissan, Hyundai, Chrysler, Lincoln, Kia, RAM</h1></div>
@@ -105,6 +134,18 @@
 <footer>
 	<aside><i>Created by Mason Gaugler - 2021</i></aside>
 </footer>
+
+<div id="modal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Notification</h3>
+            <button onclick="closeModal()" class="modal-close-btn">×</button>
+        </div>
+        <div class="modal-body">
+            <div id="modalMessage"></div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
