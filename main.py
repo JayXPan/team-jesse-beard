@@ -1,3 +1,4 @@
+import fastapi
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +25,7 @@ dbconfig = {
 }
 pool = MySQLConnectionPool(pool_name="mypool", pool_size=10, **dbconfig)
 
+
 def get_db():
     connection = pool.get_connection()
     try:
@@ -31,8 +33,10 @@ def get_db():
     finally:
         connection.close()
 
+
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
+
 
 def get_username_from_token(token, db: mysql.connector.MySQLConnection):
     if not token:
@@ -59,11 +63,13 @@ def get_username_from_token(token, db: mysql.connector.MySQLConnection):
     finally:
         cursor.close()
 
+
 @app.middleware("http")
 async def add_custom_headers(request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
 
 @app.get("/")
 def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
@@ -71,6 +77,7 @@ def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(ge
     username = get_username_from_token(token, db)
 
     return templates.TemplateResponse("index.html", {"request": request, "username": username})
+
 
 @app.post("/register/")
 async def register(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
@@ -131,3 +138,55 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
         raise HTTPException(status_code=500, detail="Server error during login")
     finally:
         cursor.close()
+
+
+@app.post("/make-post/")
+async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
+
+    form_data = await request.form()
+    title = form_data.get("title")
+    description = form_data.get("description")
+
+    token = request.cookies.get("token")
+    if token is None:
+        return fastapi.Response(None, 301, {"Location": "/", "Content-Length": "0"})
+
+    hashed_token = hash_token(token)
+
+    cursor = db.cursor()
+
+    try:
+        cursor.execute(
+            "SELECT username FROM users WHERE hashed_token = %s",
+            (hashed_token,)
+        )
+
+        result = cursor.fetchone()
+
+        if result:
+            username = result[0]
+        else:
+            return fastapi.Response(None, 301, {"Location": "/", "Content-Length": "0"})
+
+        cursor.execute(
+            "INSERT INTO posts(username,title,description) VALUES (%s,%s,%s)",
+            (username, title, description)
+        )
+
+        db.commit()
+
+        response = JSONResponse(
+            {"username": html.escape(username),
+             "title": html.escape(title),
+             "description": html.escape(description)})
+
+        return response
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Server error during login")
+    finally:
+        cursor.close()
+
+
