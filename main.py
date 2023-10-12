@@ -163,10 +163,10 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
 
         result = cursor.fetchone()
 
-        if result:
-            username = result[0]
-        else:
-            return fastapi.Response(None, 301, {"Location": "/", "Content-Length": "0"})
+        if not result:
+            return JSONResponse(status_code=403, content={"error": "Please register and login with your account to make a post."})
+        
+        username = result[0]
 
         cursor.execute(
             "INSERT INTO posts(username,title,description) VALUES (%s,%s,%s)",
