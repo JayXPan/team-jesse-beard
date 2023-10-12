@@ -144,12 +144,12 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
 async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
 
     form_data = await request.form()
-    title = form_data.get("title")
-    description = form_data.get("description")
+    title =  html.escape(form_data.get("title"))
+    description =  html.escape(form_data.get("description"))
 
     token = request.cookies.get("token")
     if token is None:
-        return fastapi.Response(None, 301, {"Location": "/", "Content-Length": "0"})
+        return JSONResponse(status_code=403, content={"error": "Login required to make a post."})
 
     hashed_token = hash_token(token)
 
@@ -172,7 +172,6 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
             "INSERT INTO posts(username,title,description) VALUES (%s,%s,%s)",
             (username, title, description)
         )
-
         db.commit()
 
         response = JSONResponse(
@@ -189,4 +188,15 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
     finally:
         cursor.close()
 
+@app.get("/get-posts/")
+async def get_posts(db: mysql.connector.MySQLConnection = Depends(get_db)):
+    cursor = db.cursor()
 
+    try:
+        cursor.execute("SELECT username, title, description FROM posts")
+        posts = cursor.fetchall()
+        return {"posts": [{"username": post[0], "title": post[1], "description": post[2]} for post in posts]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Server error while fetching posts")
+    finally:
+        cursor.close()

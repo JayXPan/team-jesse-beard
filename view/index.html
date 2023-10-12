@@ -8,7 +8,7 @@
 
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_stylesheet.css">
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_home.css">
-	<script src="static/js/date_and_time.js" defer></script>
+	<!-- <script src="static/js/date_and_time.js" defer></script> -->
 	<script src="static/js/animations.js"></script>
 	<script src="static/js/modal.js"></script>
 	<script src="static/js/auth.js" defer></script>
@@ -57,12 +57,9 @@
 	</div>
 
 	<div class="post section">
-		<div class="posts">
-			<div id="all-posts"></div>
-		</div>
 		<div class="make-post">
 				<h2>Make a post!</h2>
-				<form id="make-post" action="/make-post/" method="POST">
+				<form id="make-post" onsubmit="handlePostSubmit(event)" action="/make-post/" method="POST">
 					<label>Title:<br/>
 						<input type="text" name="title"><br/>
 					</label>
@@ -72,9 +69,12 @@
 					<input type="submit" value="Submit">
 				</form>
 		</div>
+		<div class="posts">
+			<div id="all-posts"></div>
+		</div>
 	</div>
 
-	<div class="hero-section">
+	<!-- <div class="hero-section">
 		<div class="hero-text"><h1>Kinkerton Nissan, Hyundai, Chrysler, Lincoln, Kia, RAM</h1></div>
 		<div class="hero-subtitle"><h3><i>1618 Pacific Fister Pkwy, Buffalo, NY</i></h3></div>
 		<div id="currentTime"><span>date</span><span>time</span></div>
@@ -152,7 +152,7 @@
 
 <footer>
 	<aside><i>Created by Mason Gaugler - 2021</i></aside>
-</footer>
+</footer> -->
 
 <div id="modal" class="modal-overlay">
     <div class="modal">
