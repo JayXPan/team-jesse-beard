@@ -139,23 +139,29 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
     finally:
         cursor.close()
 
-
+"""
+Endpoint to handle the creation of new posts.
+It checks if the user is authenticated by verifying their token.
+"""
 @app.post("/make-post/")
 async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
-
+    # Extracting form data
     form_data = await request.form()
     title =  html.escape(form_data.get("title"))
     description =  html.escape(form_data.get("description"))
 
+    # Check if the token is present
     token = request.cookies.get("token")
     if token is None:
         return JSONResponse(status_code=403, content={"error": "Login required to make a post."})
 
+    # Hash the token for database verification
     hashed_token = hash_token(token)
 
     cursor = db.cursor()
 
     try:
+        # Check if the hashed token belongs to a registered user
         cursor.execute(
             "SELECT username FROM users WHERE hashed_token = %s",
             (hashed_token,)
@@ -163,24 +169,28 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
 
         result = cursor.fetchone()
 
+        # If no matching user is found, return an error
         if not result:
             return JSONResponse(status_code=403, content={"error": "Please register and login with your account to make a post."})
         
         username = result[0]
 
+        # Insert the new post into the database
         cursor.execute(
             "INSERT INTO posts(username,title,description) VALUES (%s,%s,%s)",
             (username, title, description)
         )
         db.commit()
 
+        # Respond with the post details
         response = JSONResponse(
             {"username": html.escape(username),
              "title": html.escape(title),
              "description": html.escape(description)})
 
         return response
-
+    
+    # Exception handlers for potential errors during the process
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -188,6 +198,9 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
     finally:
         cursor.close()
 
+"""
+Endpoint to retrieve all the posts.
+"""
 @app.get("/get-posts/")
 async def get_posts(db: mysql.connector.MySQLConnection = Depends(get_db)):
     cursor = db.cursor()
@@ -195,6 +208,7 @@ async def get_posts(db: mysql.connector.MySQLConnection = Depends(get_db)):
     try:
         cursor.execute("SELECT username, title, description FROM posts")
         posts = cursor.fetchall()
+        # Return a list of post dictionaries
         return {"posts": [{"username": post[0], "title": post[1], "description": post[2]} for post in posts]}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Server error while fetching posts")

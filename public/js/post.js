@@ -1,3 +1,6 @@
+/**
+ * Fetch the posts from the server in JSON format.
+ */
 async function getJSON() {
     try {
         const response = await fetch('/get-posts/');
@@ -12,6 +15,9 @@ async function getJSON() {
     }
 }
 
+/**
+ * Fetch and display posts.
+ */
 async function fetchData() {
     try {
         const data = await getJSON();
@@ -21,8 +27,12 @@ async function fetchData() {
     }
 }
 fetchData();
-setInterval(fetchData, 3000);
+setInterval(fetchData, 3000); // Poll the server every 3 seconds to update posts
 
+/**
+ * Display the posts to the page.
+ * @param {Array} posts - List of posts to display.
+ */
 function displayPosts(posts) {
     const allPosts = document.getElementById("all-posts");
     allPosts.innerHTML = '';
@@ -38,6 +48,10 @@ function displayPosts(posts) {
     });
 }
 
+/**
+ * Handle the post submission form, send data to the server and update UI accordingly.
+ * @param {Event} event - The form submission event.
+ */
 async function handlePostSubmit(event) {
     event.preventDefault();
     
