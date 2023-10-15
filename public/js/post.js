@@ -42,6 +42,12 @@ function displayPosts(posts) {
         postElement.innerHTML = `
             <h3>${post.title}</h3>
             <p>${post.description}</p>
+            <button 
+                id="like-btn-${post.id}" 
+                onclick="toggleLike(${post.id})"
+            >
+                ${post.liked ? 'Dislike' : 'Like'} (${post.likes})
+            </button>
             <footer>Posted by: ${post.username}</footer>
         `;
         allPosts.appendChild(postElement);
@@ -72,4 +78,19 @@ async function handlePostSubmit(event) {
     }
 }
 
-
+/**
+ * Toggles the like state of a specific post.
+ * @param {number} postId - The ID of the post whose like status is to be toggled.
+ */
+async function toggleLike(postId) {
+    const response = await fetch(`/toggle-like/${postId}`, { method: 'POST' });
+    
+    if (response.ok) {
+        const data = await response.json();
+        const likeBtn = document.querySelector(`#like-btn-${postId}`);
+        likeBtn.innerText = `${data.likedByUser ? 'Dislike' : 'Like'} (${data.likes})`;
+    } else {
+        const errorData = await response.json();
+        showModal(errorData.error);
+    }
+}
