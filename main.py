@@ -202,15 +202,107 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
 Endpoint to retrieve all the posts.
 """
 @app.get("/get-posts/")
-async def get_posts(db: mysql.connector.MySQLConnection = Depends(get_db)):
+async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
+    token = request.cookies.get("token")
+
     cursor = db.cursor()
 
     try:
-        cursor.execute("SELECT username, title, description FROM posts")
+        if token:
+            hashed_token = hash_token(token)
+            cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
+            user = cursor.fetchone()
+            user_id = user[0]
+            # Fetch post details for authenticated user
+            query = """
+            SELECT 
+                p.id, p.username, p.title, p.description, 
+                COUNT(pl.id) AS likes_count,
+                SUM(CASE WHEN pl.user_id = %s THEN 1 ELSE 0 END) AS liked_by_user
+            FROM 
+                posts p
+            LEFT JOIN 
+                post_likes pl ON p.id = pl.post_id
+            GROUP BY 
+                p.id, p.username, p.title, p.description
+            """
+
+            cursor.execute(query, (user_id,))
+        else:
+            # Fetch post details for guests
+            query = """
+            SELECT 
+                p.id, p.username, p.title, p.description, 
+                COUNT(pl.id) AS likes_count,
+                0 AS liked_by_user
+            FROM 
+                posts p
+            LEFT JOIN 
+                post_likes pl ON p.id = pl.post_id
+            GROUP BY 
+                p.id, p.username, p.title, p.description
+            """
+
+            cursor.execute(query)
+
         posts = cursor.fetchall()
-        # Return a list of post dictionaries
-        return {"posts": [{"username": post[0], "title": post[1], "description": post[2]} for post in posts]}
+
+        # Return a list of post dictionaries with likes count
+        return {
+            "posts": [
+                {
+                    "id": post[0], 
+                    "username": post[1], 
+                    "title": post[2], 
+                    "description": post[3],
+                    "likes": post[4],
+                    "liked": post[5] > 0
+                }
+                for post in posts
+            ]
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail="Server error while fetching posts")
     finally:
         cursor.close()
+
+"""
+Handles the liking and unliking of a post.
+"""
+@app.post("/toggle-like/{post_id}")
+async def toggle_like(post_id: int, request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
+    token = request.cookies.get("token")
+    if not token:
+        return JSONResponse(status_code=403, content={"error": "Login required to like a post."})
+
+    hashed_token = hash_token(token)
+    with db.cursor() as cursor:
+        # Fetch the user id associated with this token
+        cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
+        user = cursor.fetchone()
+        if not user:
+            return JSONResponse(status_code=403, content={"error": "Invalid user."})
+
+        user_id = user[0]
+        # Check if the user has already liked the post
+        cursor.execute("SELECT id FROM post_likes WHERE post_id = %s AND user_id = %s", (post_id, user_id))
+        result = cursor.fetchone()
+
+        if result:
+            # User has liked the post, so remove the like
+            cursor.execute("DELETE FROM post_likes WHERE id = %s", (result[0],))
+            likedByUser = False  
+        else:
+            # User hasn't liked the post, so add the like
+            cursor.execute("INSERT INTO post_likes (post_id, user_id) VALUES (%s, %s)", (post_id, user_id))
+            likedByUser = True
+        
+        db.commit()
+
+        # Fetch the updated like count
+        cursor.execute("SELECT COUNT(id) FROM post_likes WHERE post_id = %s", (post_id,))
+        likes = cursor.fetchone()
+
+    return {"likes": likes[0] if likes else 0, "likedByUser": likedByUser}
+
