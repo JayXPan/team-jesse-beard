@@ -271,6 +271,7 @@ body{
 }
 
 .posts {
+	display: flex;
     width: 95%;
     max-width: 600px;
     border: 1px solid #e0e0e0;

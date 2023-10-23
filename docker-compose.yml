@@ -29,6 +29,9 @@ services:
       - DB_USER=root
       - DB_PASSWORD=my-secret-pw
       - DB_NAME=database
+    volumes:
+      - images-data:/usr/src/app/public/images
 
 volumes:
   database-data:
+  images-data:

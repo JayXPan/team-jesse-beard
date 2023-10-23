@@ -1,5 +1,5 @@
 import fastapi
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -9,8 +9,11 @@ import bcrypt
 import secrets
 import hashlib
 import html
+import os
+from typing import Optional
 
-
+CHUNK_SIZE = 1024
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="public"), name="static")
@@ -57,7 +60,6 @@ def get_username_from_token(token, db: mysql.connector.MySQLConnection):
         return result[0] if result else 'Guest'
 
     except mysql.connector.Error as err:
-        print("Error:", err)
         return 'Guest'
 
     finally:
@@ -119,7 +121,7 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
         user = cursor.fetchone()
 
         if not user or not bcrypt.checkpw(password.encode(), user[1].encode()):
-            raise HTTPException(status_code=401, detail="Incorrect username or password")
+            raise HTTPException(status_code=401, content={"error": "Incorrect username or password"})
 
         token = secrets.token_hex(80)
         hashed_token = hash_token(token)
@@ -135,7 +137,7 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Server error during login")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
 
@@ -144,11 +146,17 @@ Endpoint to handle the creation of new posts.
 It checks if the user is authenticated by verifying their token.
 """
 @app.post("/make-post/")
-async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
-    # Extracting form data
-    form_data = await request.form()
-    title =  html.escape(form_data.get("title"))
-    description =  html.escape(form_data.get("description"))
+async def make_post(
+    request: Request,
+    db: mysql.connector.MySQLConnection = Depends(get_db),
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    uploaded_image: Optional[UploadFile] = File(None),
+    starting_price: Optional[float] = Form(None),
+    duration: Optional[int] = Form(None)
+):
+    if not title or not description or not uploaded_image.filename or not starting_price or not duration:
+        return JSONResponse(status_code=400, content={"error": "All fields are required."})
 
     # Check if the token is present
     token = request.cookies.get("token")
@@ -163,7 +171,7 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
     try:
         # Check if the hashed token belongs to a registered user
         cursor.execute(
-            "SELECT username FROM users WHERE hashed_token = %s",
+            "SELECT username, id FROM users WHERE hashed_token = %s",
             (hashed_token,)
         )
 
@@ -174,11 +182,26 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
             return JSONResponse(status_code=403, content={"error": "Please register and login with your account to make a post."})
         
         username = result[0]
+        user_id = result[1]
+        if not os.path.exists("public/images"):
+            os.makedirs("public/images")
 
+        file_extension = os.path.splitext(uploaded_image.filename)[1].lower()
+        if file_extension not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid image file format.")
+        # Generate a unique filename
+        unique_filename = f"item_{user_id}_image{file_extension}"
+        image_path = os.path.join("public/images", unique_filename)
+        with open(image_path, "wb") as buffer:
+            while True:
+                chunk = await uploaded_image.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                buffer.write(chunk)
         # Insert the new post into the database
         cursor.execute(
-            "INSERT INTO posts(username,title,description) VALUES (%s,%s,%s)",
-            (username, title, description)
+            "INSERT INTO posts(username, title, description, image, starting_price, duration) VALUES (%s, %s, %s, %s, %s, %s)",
+            (username, title, description, unique_filename, starting_price, duration)
         )
         db.commit()
 
@@ -186,7 +209,10 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
         response = JSONResponse(
             {"username": html.escape(username),
              "title": html.escape(title),
-             "description": html.escape(description)})
+             "description": html.escape(description),
+             "image": html.escape(image_path),
+             "starting_price": starting_price,
+             "duration": duration})
 
         return response
     
@@ -194,7 +220,7 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Server error during login")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
 
@@ -208,6 +234,16 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
     cursor = db.cursor()
 
     try:
+        # Check if there are any posts
+        cursor.execute("SELECT COUNT(*) FROM posts")
+        post_count = cursor.fetchone()[0]
+
+        # If there are no posts, return an empty list immediately
+        if post_count == 0:
+            return {
+                "posts": []
+            }
+        
         if token:
             hashed_token = hash_token(token)
             cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
@@ -216,7 +252,7 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
             # Fetch post details for authenticated user
             query = """
             SELECT 
-                p.id, p.username, p.title, p.description, 
+                p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration, 
                 COUNT(pl.id) AS likes_count,
                 SUM(CASE WHEN pl.user_id = %s THEN 1 ELSE 0 END) AS liked_by_user
             FROM 
@@ -224,7 +260,7 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
             LEFT JOIN 
                 post_likes pl ON p.id = pl.post_id
             GROUP BY 
-                p.id, p.username, p.title, p.description
+                p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration
             """
 
             cursor.execute(query, (user_id,))
@@ -232,7 +268,7 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
             # Fetch post details for guests
             query = """
             SELECT 
-                p.id, p.username, p.title, p.description, 
+                p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration, 
                 COUNT(pl.id) AS likes_count,
                 0 AS liked_by_user
             FROM 
@@ -240,7 +276,7 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
             LEFT JOIN 
                 post_likes pl ON p.id = pl.post_id
             GROUP BY 
-                p.id, p.username, p.title, p.description
+                p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration
             """
 
             cursor.execute(query)
@@ -255,15 +291,18 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
                     "username": post[1], 
                     "title": post[2], 
                     "description": post[3],
-                    "likes": post[4],
-                    "liked": post[5] > 0
+                    "image": post[4],
+                    "starting_price": post[5],
+                    "duration": post[6],
+                    "likes": post[7],
+                    "liked": post[8] > 0
                 }
                 for post in posts
             ]
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Server error while fetching posts")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
 

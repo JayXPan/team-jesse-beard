@@ -9,11 +9,6 @@
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_stylesheet.css">
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_home.css">
 	<!-- <script src="static/js/date_and_time.js" defer></script> -->
-	<script src="static/js/animations.js"></script>
-	<script src="static/js/modal.js"></script>
-	<script src="static/js/auth.js" defer></script>
-	<script src="static/js/post.js" defer></script>
-
 	<link rel="icon" href="static/favicon.ico" type="image/x-icon">
 
 </head>
@@ -59,13 +54,27 @@
 	<div class="post section">
 		<div class="make-post">
 				<h2>Make a post!</h2>
-				<form id="make-post" onsubmit="handlePostSubmit(event)" action="/make-post/" method="POST">
+				<form id="make-post" onsubmit="handlePostSubmit(event)" action="/make-post/" method="POST" enctype="multipart/form-data">
 					<label>Title:<br/>
 						<input type="text" name="title"><br/>
 					</label>
+
 					<label>Description: <br/>
 						<input type="text" name="description"><br/>
 					</label>
+
+					<label>Upload Image:<br/>
+						<input type="file" name="uploaded_image" accept="image/*"><br/>
+					</label>
+
+					<label>Starting Price:<br/>
+						<input type="number" name="starting_price" min="0" step="0.01"><br/>
+					</label>
+
+					<label>Duration (in minutes):<br/>
+						<input type="number" name="duration" min="1" step="1"><br/>
+					</label>
+
 					<input type="submit" value="Submit">
 				</form>
 		</div>
@@ -166,5 +175,9 @@
     </div>
 </div>
 
+<script src="static/js/animations.js"></script>
+<script src="static/js/modal.js"></script>
+<script src="static/js/auth.js"></script>
+<script src="static/js/post.js"></script>
 </body>
 </html>

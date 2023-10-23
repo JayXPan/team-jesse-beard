@@ -35,13 +35,19 @@ setInterval(fetchData, 3000); // Poll the server every 3 seconds to update posts
  */
 function displayPosts(posts) {
     const allPosts = document.getElementById("all-posts");
-    allPosts.innerHTML = '';
-
+    allPosts.innerHTML = '';    
     posts.forEach(post => {
         const postElement = document.createElement("div");
         postElement.innerHTML = `
             <h3>${post.title}</h3>
             <p>${post.description}</p>
+            <img src="/static/images/${post.image}" alt="${post.title}">
+            <div>
+                <strong>Starting Price:</strong> $${post.starting_price} 
+            </div>
+            <div>
+                <strong>Duration:</strong> ${post.duration} minutes
+            </div>
             <button 
                 id="like-btn-${post.id}" 
                 onclick="toggleLike(${post.id})"
