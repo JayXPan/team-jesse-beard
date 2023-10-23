@@ -208,6 +208,14 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
     cursor = db.cursor()
 
     try:
+        cursor.execute("SELECT COUNT(*) FROM posts")
+        post_count = cursor.fetchone()[0]
+
+        # If there are no posts, return an empty list immediately
+        if post_count == 0:
+            return {
+                "posts": []
+            }
         if token:
             hashed_token = hash_token(token)
             cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))

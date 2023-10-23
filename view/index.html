@@ -4,7 +4,7 @@
 
 	<meta charset="utf-8"></meta>
 
-	<title>Kinkerton Used Cars</title>
+	<title>CSE 312 Group Project</title>
 
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_stylesheet.css">
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_home.css">
@@ -20,7 +20,7 @@
 <body>
 
 	<header>
-		
+
 		<nav>
 			<ul>
 				<li id="mainTitle"><h1><i>CSE 312 Project 1</i></h1></li>
@@ -32,40 +32,70 @@
 
 	</header>
 
-	<div class="auth-section">
-		<div class="registration">
-			<h2>Register</h2>
-			<form action="/register/" method="POST">
-				<label for="registerUsername">Username:</label><br>
-				<input type="text" id="registerUsername" name="username" required><br><br>
-				<label for="registerPassword">Password:</label><br>
-				<input type="password" id="registerPassword" name="password" required><br><br>
-				<input type="submit" value="Register">
-			</form>
-		</div>
-	
-		<div class="login">
-			<h2>Login</h2>
-			<form action="/login/" method="POST">
-				<label for="loginUsername">Username:</label><br>
-				<input type="text" id="loginUsername" name="username" required><br><br>
-				<label for="loginPassword">Password:</label><br>
-				<input type="password" id="loginPassword" name="password" required><br><br>
-				<input type="submit" value="Login">
-			</form>
-		</div>
-	</div>
+<h1 id="BodyTitle">PostPlace - A Place for Posts</h1>
+<p id="IntroBodyText">Welcome to PostPlace! A site dedicated to hosting your thoughts, ideas, and ramblings to share with the whole world! To get started, register or login with your credentials to create a post. You cannot create a post without an account. Have fun!</p>
 
-	<div class="post section">
+<hr id="IntroSeparator">
+
+<div style="width: 100%; overflow: hidden;">
+
+		<div class="auth-section" style="width: 400px; float: right;">
+
+		<button type="button" class="collapsible"><strong>Register ⇂</strong></button>
+			<div class="registerNew">
+				<p>New to the site? Please register before creating a post!</p>
+				<form action="/register/" method="POST">
+					<input id="registerUsername" type="text" name="username" placeholder="Username" required><br>
+					<input type="password" id="registerPassword" name="password" placeholder="Password" required><br><br>
+					<input id="registerButton" type="submit" value="Register">
+				</form>
+			</div>
+
+		<button type="button" class="collapsible"><strong>Login ⇂</strong></button>
+			<div class="loginNew">
+				<p>Returning user? Welcome back! Please enter your username and password.</p>
+				<form action="/login/" method="POST">
+					<input type="text" id="loginUsername" name="username" placeholder="Username" required><br>
+					<input type="password" id="loginPassword" name="password" placeholder="Password" required><br><br>
+					<input id="loginButton" type="submit" value="Login">
+				</form>
+			</div>
+
+
+
+			<script>
+			var coll = document.getElementsByClassName("collapsible");
+			var i;
+
+			for (i = 0; i < coll.length; i++) {
+		  		coll[i].addEventListener("click", function() {
+		    		this.classList.toggle("active");
+		    		var content = this.nextElementSibling;
+		    		if (content.style.display === "block") {
+		      			content.style.display = "none";
+		    		} else {
+		      			content.style.display = "block";
+		    		}
+				  });
+			}
+			</script>
+
+		</div>
+
+
+
+
+	<div class="post section" style="margin-right: 450px;">
 		<div class="make-post">
-				<h2>Make a post!</h2>
+				<h2>Create a post...</h2>
+				<div id="createPostSubtitle">Creating post as: &nbsp;<span id="createUsernameText">{{ username }}</span></div>
 				<form id="make-post" onsubmit="handlePostSubmit(event)" action="/make-post/" method="POST">
-					<label>Title:<br/>
-						<input type="text" name="title"><br/>
+					<label><br/>
+						<input type="text" name="title" placeholder="Post Title"><br/>
 					</label>
-					<label>Description: <br/>
-						<input type="text" name="description"><br/>
-					</label>
+
+						<textarea id="descriptionBox" type="text" name="description" placeholder="Write the body of your post here..."></textarea><br/>
+
 					<input type="submit" value="Submit">
 				</form>
 		</div>
@@ -73,6 +103,9 @@
 			<div id="all-posts"></div>
 		</div>
 	</div>
+
+
+</div>
 
 	<!-- <div class="hero-section">
 		<div class="hero-text"><h1>Kinkerton Nissan, Hyundai, Chrysler, Lincoln, Kia, RAM</h1></div>
