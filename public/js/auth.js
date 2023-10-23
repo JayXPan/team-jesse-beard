@@ -1,5 +1,5 @@
 async function loginUser() {
-    const formData = new FormData(document.querySelector('.login form'));
+    const formData = new FormData(document.querySelector('.loginNew form'));
     
     const response = await fetch('/login/', {
         method: 'POST',
@@ -16,7 +16,7 @@ async function loginUser() {
 }
 
 async function registerUser() {
-    const formData = new FormData(document.querySelector('.registration form'));
+    const formData = new FormData(document.querySelector('.registerNew form'));
     
     const response = await fetch('/register/', {
         method: 'POST',
@@ -32,12 +32,12 @@ async function registerUser() {
     }
 }
 
-document.querySelector('.login input[type="submit"]').addEventListener('click', (event) => {
+document.querySelector('.loginNew input[type="submit"]').addEventListener('click', (event) => {
     event.preventDefault(); 
     loginUser();             
 });
 
-document.querySelector('.registration input[type="submit"]').addEventListener('click', (event) => {
+document.querySelector('.registerNew input[type="submit"]').addEventListener('click', (event) => {
     event.preventDefault();
     registerUser();
 });
