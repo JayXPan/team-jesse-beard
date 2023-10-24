@@ -3,23 +3,7 @@ import hashlib
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-# # Set up a connection pool
-# dbconfig = {
-#     "host": "db",
-#     "user": "root",
-#     "password": "my-secret-pw",
-#     "database": "database",
-# }
-# pool = MySQLConnectionPool(pool_name="mypool", pool_size=10, **dbconfig)
-
 class DatabaseManager:
-    
-    # def get_db(self):
-    #     connection = pool.get_connection()
-    #     try:
-    #         yield connection
-    #     finally:
-    #         connection.close()
 
     def hash_token(self, token):
         return hashlib.sha256(token.encode()).hexdigest()

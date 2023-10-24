@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from mysql.connector.pooling import MySQLConnectionPool
 from typing import Optional
 
-CHUNK_SIZE = 1024
+CHUNK_SIZE = 2048
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 app = FastAPI()
 db_manager = DatabaseManager()
@@ -30,7 +30,6 @@ dbconfig = {
 }
 pool = MySQLConnectionPool(pool_name="mypool", pool_size=10, **dbconfig)
 
-
 def get_db():
     connection = pool.get_connection()
     try:
@@ -38,35 +37,8 @@ def get_db():
     finally:
         connection.close()
 
-
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
-
-
-# def get_username_from_token(token, db: mysql.connector.MySQLConnection):
-#     if not token:
-#         return 'Guest'
-
-#     hashed_token = hash_token(token)
-
-#     cursor = db.cursor()
-#     try:
-#         stmt = """
-#         SELECT u.username 
-#         FROM users u
-#         WHERE u.hashed_token = %s
-#         LIMIT 1
-#         """
-#         cursor.execute(stmt, (hashed_token,))
-#         result = cursor.fetchone()
-#         return result[0] if result else 'Guest'
-
-#     except mysql.connector.Error as err:
-#         return 'Guest'
-
-#     finally:
-#         cursor.close()
-
 
 @app.middleware("http")
 async def add_custom_headers(request, call_next):
@@ -91,18 +63,7 @@ async def register(request: Request, db: mysql.connector.MySQLConnection = Depen
     
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
-    # cursor = db.cursor()
-    # try:
     db_manager.register_user(username, hashed_password, db)
-        # cursor.execute(
-        #     "INSERT INTO users(username, hashed_password) VALUES (%s, %s)", 
-        #     (username, hashed_password.decode())
-        # )
-        # db.commit()
-    # except mysql.connector.IntegrityError:
-    #     raise HTTPException(status_code=400, detail="Username already registered")
-    # except:
-    #     raise HTTPException(status_code=500, detail="Server error during registration")
 
     return {"status": "Successfully registered"}
 
@@ -113,25 +74,14 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
     username = html.escape(form_data.get("username"))
     password = form_data.get("password")
 
-    # cursor = db.cursor()
     try:
-        # cursor.execute(
-        #     "SELECT username, hashed_password FROM users WHERE username = %s", 
-        #     (username,)
-        # )
         user = db_manager.get_user_by_username(username, db)
 
         if not user or not bcrypt.checkpw(password.encode(), user[1].encode()):
-            raise HTTPException(status_code=401, content={"error": "Incorrect username or password"})
+            raise HTTPException(status_code=401, detail="Incorrect username or password")
 
         token = secrets.token_hex(80)
         hashed_token = hash_token(token)
-
-        # cursor.execute(
-        #     "UPDATE users SET hashed_token = %s WHERE username = %s", 
-        #     (hashed_token, username)
-        # )
-        # db.commit()
         db_manager.update_user_token(hashed_token, username, db)
 
         response = JSONResponse(content={"status": "Login successful", "username": username})
@@ -141,8 +91,6 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    # finally:
-    #     cursor.close()
 
 """
 Endpoint to handle the creation of new posts.
@@ -158,6 +106,7 @@ async def make_post(
     starting_price: Optional[float] = Form(None),
     duration: Optional[int] = Form(None)
 ):
+
     if not title or not description or not uploaded_image.filename or not starting_price or not duration:
         return JSONResponse(status_code=400, content={"error": "All fields are required."})
 
@@ -169,15 +118,7 @@ async def make_post(
     # Hash the token for database verification
     hashed_token = hash_token(token)
 
-    # cursor = db.cursor()
-
     try:
-        # Check if the hashed token belongs to a registered user
-        # cursor.execute(
-        #     "SELECT username, id FROM users WHERE hashed_token = %s",
-        #     (hashed_token,)
-        # )
-
         result = db_manager.get_user_from_token(hashed_token, db)
 
         # If no matching user is found, return an error
@@ -191,7 +132,7 @@ async def make_post(
 
         file_extension = os.path.splitext(uploaded_image.filename)[1].lower()
         if file_extension not in ALLOWED_IMAGE_EXTENSIONS:
-            raise HTTPException(status_code=400, detail="Invalid image file format.")
+            return JSONResponse(status_code=400, content={"error": "Invalid image file format."})
         # Generate a unique filename
         unique_filename = f"item_{user_id}_image{file_extension}"
         image_path = os.path.join("public/images", unique_filename)
@@ -201,12 +142,6 @@ async def make_post(
                 if not chunk:
                     break
                 buffer.write(chunk)
-        # Insert the new post into the database
-        # cursor.execute(
-        #     "INSERT INTO posts(username, title, description, image, starting_price, duration) VALUES (%s, %s, %s, %s, %s, %s)",
-        #     (username, title, description, unique_filename, starting_price, duration)
-        # )
-        # db.commit()
         db_manager.insert_post(username, title, description, unique_filename, starting_price, duration, db)
 
         # Respond with the post details
@@ -222,10 +157,6 @@ async def make_post(
     
     except HTTPException as he:
         raise he
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
-    # finally:
-    #     cursor.close()
 
 """
 Endpoint to retrieve all the posts.
@@ -233,58 +164,6 @@ Endpoint to retrieve all the posts.
 @app.get("/get-posts/")
 async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     token = request.cookies.get("token")
-
-    # cursor = db.cursor()
-
-    # try:
-    #     # Check if there are any posts
-    #     cursor.execute("SELECT COUNT(*) FROM posts")
-    #     post_count = cursor.fetchone()[0]
-
-    #     # If there are no posts, return an empty list immediately
-    #     if post_count == 0:
-    #         return {
-    #             "posts": []
-    #         }
-        
-    #     if token:
-    #         hashed_token = hash_token(token)
-    #         cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
-    #         user = cursor.fetchone()
-    #         user_id = user[0]
-    #         # Fetch post details for authenticated user
-    #         query = """
-    #         SELECT 
-    #             p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration, 
-    #             COUNT(pl.id) AS likes_count,
-    #             SUM(CASE WHEN pl.user_id = %s THEN 1 ELSE 0 END) AS liked_by_user
-    #         FROM 
-    #             posts p
-    #         LEFT JOIN 
-    #             post_likes pl ON p.id = pl.post_id
-    #         GROUP BY 
-    #             p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration
-    #         """
-
-    #         cursor.execute(query, (user_id,))
-    #     else:
-    #         # Fetch post details for guests
-    #         query = """
-    #         SELECT 
-    #             p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration, 
-    #             COUNT(pl.id) AS likes_count,
-    #             0 AS liked_by_user
-    #         FROM 
-    #             posts p
-    #         LEFT JOIN 
-    #             post_likes pl ON p.id = pl.post_id
-    #         GROUP BY 
-    #             p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration
-    #         """
-
-    #         cursor.execute(query)
-
-        # posts = cursor.fetchall()
     posts = db_manager.get_all_posts(token, db)
 
     # Return a list of post dictionaries with likes count
@@ -305,11 +184,6 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
         ]
     }
 
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
-    # finally:
-    #     cursor.close()
-
 """
 Handles the liking and unliking of a post.
 """
@@ -320,34 +194,6 @@ async def toggle_like(post_id: int, request: Request, db: mysql.connector.MySQLC
         return JSONResponse(status_code=403, content={"error": "Login required to like a post."})
 
     hashed_token = hash_token(token)
-    # with db.cursor() as cursor:
-    #     # Fetch the user id associated with this token
-    #     cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
-    #     user = cursor.fetchone()
-    #     if not user:
-    #         return JSONResponse(status_code=403, content={"error": "Invalid user."})
-
-    #     user_id = user[0]
-    #     # Check if the user has already liked the post
-    #     cursor.execute("SELECT id FROM post_likes WHERE post_id = %s AND user_id = %s", (post_id, user_id))
-    #     result = cursor.fetchone()
-
-    #     if result:
-    #         # User has liked the post, so remove the like
-    #         cursor.execute("DELETE FROM post_likes WHERE id = %s", (result[0],))
-    #         likedByUser = False  
-    #     else:
-    #         # User hasn't liked the post, so add the like
-    #         cursor.execute("INSERT INTO post_likes (post_id, user_id) VALUES (%s, %s)", (post_id, user_id))
-    #         likedByUser = True
-        
-    #     db.commit()
-
-    #     # Fetch the updated like count
-    #     cursor.execute("SELECT COUNT(id) FROM post_likes WHERE post_id = %s", (post_id,))
-    #     likes = cursor.fetchone()
-
-    # return {"likes": likes[0] if likes else 0, "likedByUser": likedByUser}
     return db_manager.toggle_post_like(post_id, hashed_token, db)
 
 

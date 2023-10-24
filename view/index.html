@@ -10,6 +10,7 @@
 	<link rel="stylesheet" type="text/css" href="static/css/lynx_home.css">
 	<!-- <script src="static/js/date_and_time.js" defer></script> -->
 	<link rel="icon" href="static/favicon.ico" type="image/x-icon">
+	<script src="static/js/animations.js"></script>
 
 </head>
 <body>
@@ -55,26 +56,6 @@
 					<input id="loginButton" type="submit" value="Login">
 				</form>
 			</div>
-
-
-
-			<script>
-			var coll = document.getElementsByClassName("collapsible");
-			var i;
-
-			for (i = 0; i < coll.length; i++) {
-		  		coll[i].addEventListener("click", function() {
-		    		this.classList.toggle("active");
-		    		var content = this.nextElementSibling;
-		    		if (content.style.display === "block") {
-		      			content.style.display = "none";
-		    		} else {
-		      			content.style.display = "block";
-		    		}
-				  });
-			}
-			</script>
-
 		</div>
 
 
@@ -116,86 +97,6 @@
 
 </div>
 
-	<!-- <div class="hero-section">
-		<div class="hero-text"><h1>Kinkerton Nissan, Hyundai, Chrysler, Lincoln, Kia, RAM</h1></div>
-		<div class="hero-subtitle"><h3><i>1618 Pacific Fister Pkwy, Buffalo, NY</i></h3></div>
-		<div id="currentTime"><span>date</span><span>time</span></div>
-	</div>
-
-	<br>
-
-	<table class="home">
-		<tbody>
-		<tr>
-			<td id="useless"><h3>Welcome to Kinkerton Used Cars!</h3>Since 2008, Don Foretti and the Kinkerton team have been waging war against high prices! Do you have good credit? Bad credit? No credit? Roll credits! We finance anyone who can fog a mirror!
-				<br><br>
-			We will sell you a car TODAY, no questions asked! We know that the car-buying process can be complicated and stressful - so here at Kinkerton, we put the FUN in finance! Simply visit our beautiful lot in North Buffalo (please page in at the gate), pick a car that catches your eye, scribble your John Hancock a couple times, and you'll be picking up the kids from soccer practice within the hour!
-			<br><br><hr><br>
-			<b>We WAGE WAR against high prices!</b>
-			<ul>
-				<li>No money down!</li>
-				<li>Credit check sweepstakes!</li>
-				<li>Competitive financing rates!</li>
-				<li>A used car hand-picked for YOU!</li>
-				<li>In and out the door - the record is 14 minutes!</li>
-				<li>HUGE selection!</li>
-				<li>Friendly staff!</li>
-			</ul>
-			</td>
-			<td>
-			<img id="torii-home" src="static/images/bigdon.jpg">
-			</td>
-		</tr>
-		<tr>
-			<td id="useless"></td>
-			<td id="subtitle">"Big" Don Foretti opening his second dealership, 1988</td>
-		</tr>
-		</tbody>
-	</table>
-
-	<br><hr class="line">
-
-	<article class="audiophile">
-		<p>Check out this week's specials:</p>
-	</article>
-	<br>
-
-	<table id="mic">
-		<thead>
-		<tr>
-			<th>
-				2010 Nissan Altima<br>$8,575
-			</th>
-			<th>
-				2012 Lincoln MKS<br>$12,486
-			</th>
-			<th>
-				2010 Nissan Rogue SL AWD<br>$9,555
-			</th>
-			<th>
-				2009 Kia Sportage AWD<br>$8,190
-			</th>
-		</tr>
-		</thead>
-		<tbody>
-			<tr>
-				<td><img src="static/images/ohno.jpg"></a></td>
-				<td><img src="static/images/lincoln.jpg"></a></td>
-				<td><img src="static/images/nissan.jpg"></a></td>
-				<td><img src="static/images/kia.jpg"></a></td>
-			</tr>
-		</tbody>
-	</table>
-
-	<br><hr class="line">
-	<article class="thankyou">
-		<p>Click <i>"CSE 312 Project 1"</i> for an easter egg!</p>
-	</article>
-
-<footer>
-	<aside><i>Created by Mason Gaugler - 2021</i></aside>
-</footer> -->
-
 <div id="modal" class="modal-overlay">
     <div class="modal">
         <div class="modal-header">
@@ -208,9 +109,24 @@
     </div>
 </div>
 
-<script src="static/js/animations.js"></script>
 <script src="static/js/modal.js"></script>
 <script src="static/js/auth.js"></script>
 <script src="static/js/post.js"></script>
+<script>
+var coll = document.getElementsByClassName("collapsible");
+var i;
+
+for (i = 0; i < coll.length; i++) {
+		coll[i].addEventListener("click", function() {
+		this.classList.toggle("active");
+		var content = this.nextElementSibling;
+		if (content.style.display === "block") {
+				content.style.display = "none";
+		} else {
+				content.style.display = "block";
+		}
+		});
+}
+</script>
 </body>
 </html>
