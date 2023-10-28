@@ -6,6 +6,7 @@ import hashlib
 import html
 import os
 from util.db_manager import DatabaseManager
+from util.ws_manager import WebSocketManager
 from fastapi import FastAPI, Depends, HTTPException, Request, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +18,7 @@ CHUNK_SIZE = 2048
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 app = FastAPI()
 db_manager = DatabaseManager()
+ws_manager = WebSocketManager()
 
 app.mount("/static", StaticFiles(directory="public"), name="static")
 templates = Jinja2Templates(directory="view")
@@ -196,4 +198,26 @@ async def toggle_like(post_id: int, request: Request, db: mysql.connector.MySQLC
     hashed_token = hash_token(token)
     return db_manager.toggle_post_like(post_id, hashed_token, db)
 
-
+"""
+Handles websocket connections.
+"""
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.MySQLConnection = Depends(get_db)):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Here, you can handle incoming data, such as bids
+            # For example, if a user sends a bid, you can update the bid in the database
+            # and broadcast the new bid to all connected users.
+            if data.startswith("bid:"):
+                bid_value = float(data.split(":")[1])
+                is_valid_bid = db_manager.update_bid_if_higher(auction_id, bid_value, db)
+                if is_valid_bid:
+                    await ws_manager.broadcast(f"New bid: {bid_value} for auction {auction_id}")
+            else:
+                await ws_manager.send_personal_message("Invalid data format", websocket)
+    except Exception as e:
+        print(f"Error occurred: {e}")
+    finally:
+        ws_manager.disconnect(websocket)
