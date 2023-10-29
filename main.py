@@ -1,17 +1,29 @@
+import datetime
+import pytz
+import json
+import uuid
 import fastapi
-from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 import mysql.connector
-from mysql.connector.pooling import MySQLConnectionPool
 import bcrypt
 import secrets
 import hashlib
 import html
+import os
+from util.db_manager import DatabaseManager
+from util.ws_manager import WebSocketManager
+from fastapi import FastAPI, Depends, HTTPException, Request, File, Form, UploadFile
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from mysql.connector.pooling import MySQLConnectionPool
+from typing import Optional
 
-
+CHUNK_SIZE = 2048
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+MAX_BID_AMOUNT = 99999999.99
 app = FastAPI()
+db_manager = DatabaseManager()
+ws_manager = WebSocketManager()
 
 app.mount("/static", StaticFiles(directory="public"), name="static")
 templates = Jinja2Templates(directory="view")
@@ -25,7 +37,6 @@ dbconfig = {
 }
 pool = MySQLConnectionPool(pool_name="mypool", pool_size=10, **dbconfig)
 
-
 def get_db():
     connection = pool.get_connection()
     try:
@@ -33,36 +44,8 @@ def get_db():
     finally:
         connection.close()
 
-
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
-
-
-def get_username_from_token(token, db: mysql.connector.MySQLConnection):
-    if not token:
-        return 'Guest'
-
-    hashed_token = hash_token(token)
-
-    cursor = db.cursor()
-    try:
-        stmt = """
-        SELECT u.username 
-        FROM users u
-        WHERE u.hashed_token = %s
-        LIMIT 1
-        """
-        cursor.execute(stmt, (hashed_token,))
-        result = cursor.fetchone()
-        return result[0] if result else 'Guest'
-
-    except mysql.connector.Error as err:
-        print("Error:", err)
-        return 'Guest'
-
-    finally:
-        cursor.close()
-
 
 @app.middleware("http")
 async def add_custom_headers(request, call_next):
@@ -74,7 +57,7 @@ async def add_custom_headers(request, call_next):
 @app.get("/")
 def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     token = request.cookies.get('token')
-    username = get_username_from_token(token, db)
+    username = db_manager.get_username_from_token(token, db)
 
     return templates.TemplateResponse("index.html", {"request": request, "username": username})
 
@@ -87,19 +70,7 @@ async def register(request: Request, db: mysql.connector.MySQLConnection = Depen
     
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
-    cursor = db.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO users(username, hashed_password) VALUES (%s, %s)", 
-            (username, hashed_password.decode())
-        )
-        db.commit()
-    except mysql.connector.IntegrityError:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    except:
-        raise HTTPException(status_code=500, detail="Server error during registration")
-    finally:
-        cursor.close()
+    db_manager.register_user(username, hashed_password, db)
 
     return {"status": "Successfully registered"}
 
@@ -110,24 +81,15 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
     username = html.escape(form_data.get("username"))
     password = form_data.get("password")
 
-    cursor = db.cursor()
     try:
-        cursor.execute(
-            "SELECT username, hashed_password FROM users WHERE username = %s", 
-            (username,)
-        )
-        user = cursor.fetchone()
+        user = db_manager.get_user_by_username(username, db)
 
         if not user or not bcrypt.checkpw(password.encode(), user[1].encode()):
             raise HTTPException(status_code=401, detail="Incorrect username or password")
 
         token = secrets.token_hex(80)
         hashed_token = hash_token(token)
-        cursor.execute(
-            "UPDATE users SET hashed_token = %s WHERE username = %s", 
-            (hashed_token, username)
-        )
-        db.commit()
+        db_manager.update_user_token(hashed_token, username, db)
 
         response = JSONResponse(content={"status": "Login successful", "username": username})
         response.set_cookie(key="token", value=token, httponly=True, max_age=3600)
@@ -135,20 +97,24 @@ async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Server error during login")
-    finally:
-        cursor.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 """
 Endpoint to handle the creation of new posts.
 It checks if the user is authenticated by verifying their token.
 """
 @app.post("/make-post/")
-async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
-    # Extracting form data
-    form_data = await request.form()
-    title =  html.escape(form_data.get("title"))
-    description =  html.escape(form_data.get("description"))
+async def make_post(
+    request: Request,
+    db: mysql.connector.MySQLConnection = Depends(get_db),
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    uploaded_image: Optional[UploadFile] = File(None),
+    starting_price: Optional[float] = Form(None),
+    duration: Optional[int] = Form(None)
+):
+    if not title or not description or not uploaded_image.filename or not starting_price or not duration:
+        return JSONResponse(status_code=400, content={"error": "All fields are required."})
 
     # Check if the token is present
     token = request.cookies.get("token")
@@ -158,45 +124,59 @@ async def make_post(request: Request, db: mysql.connector.MySQLConnection = Depe
     # Hash the token for database verification
     hashed_token = hash_token(token)
 
-    cursor = db.cursor()
-
     try:
-        # Check if the hashed token belongs to a registered user
-        cursor.execute(
-            "SELECT username FROM users WHERE hashed_token = %s",
-            (hashed_token,)
-        )
-
-        result = cursor.fetchone()
+        result = db_manager.get_user_from_token(hashed_token, db)
 
         # If no matching user is found, return an error
         if not result:
             return JSONResponse(status_code=403, content={"error": "Please register and login with your account to make a post."})
         
         username = result[0]
+        if not os.path.exists("public/images"):
+            os.makedirs("public/images")
 
-        # Insert the new post into the database
-        cursor.execute(
-            "INSERT INTO posts(username,title,description) VALUES (%s,%s,%s)",
-            (username, title, description)
-        )
-        db.commit()
+        file_extension = os.path.splitext(uploaded_image.filename)[1].lower()
+        if file_extension not in ALLOWED_IMAGE_EXTENSIONS:
+            return JSONResponse(status_code=400, content={"error": "Invalid image file format."})
+        # Generate a unique filename
+        unique_filename = f"item_{str(uuid.uuid4())[:10]}_image{file_extension}"
+        image_path = os.path.join("public/images", unique_filename)
+        with open(image_path, "wb") as buffer:
+            while True:
+                chunk = await uploaded_image.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                buffer.write(chunk)
+        eastern = pytz.timezone('US/Eastern')
+        end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
+        current_bid = starting_price
+        if starting_price > MAX_BID_AMOUNT:
+            return JSONResponse(status_code=400, content={"error": "The starting price exceeds the maximum allowed value."})
+        db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time, duration, db)
 
         # Respond with the post details
         response = JSONResponse(
             {"username": html.escape(username),
              "title": html.escape(title),
-             "description": html.escape(description)})
+             "description": html.escape(description),
+             "image": html.escape(image_path),
+             "starting_price": starting_price,
+             "current_bid": current_bid,
+             "end_time": end_time.isoformat(),
+             "duration": duration})
 
         return response
-    
-    # Exception handlers for potential errors during the process
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Server error during login")
-    finally:
-        cursor.close()
+    except OverflowError:
+        return JSONResponse(status_code=400, content={"error": "Duration results in an invalid end time."})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except mysql.connector.Error as err:
+        if err.errno == mysql.connector.errorcode.ER_DATA_TOO_LONG:
+            return JSONResponse(status_code=400, content={"error": "Input data too long."})
+        elif err.errno == mysql.connector.errorcode.ER_TRUNCATED_WRONG_VALUE:
+            return JSONResponse(status_code=400, content={"error": "Invalid data format."})
+        else:
+            raise HTTPException(status_code=500, detail=str(err))
 
 """
 Endpoint to retrieve all the posts.
@@ -204,76 +184,28 @@ Endpoint to retrieve all the posts.
 @app.get("/get-posts/")
 async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     token = request.cookies.get("token")
+    posts = db_manager.get_all_posts(token, db)
 
-    cursor = db.cursor()
-
-    try:
-        cursor.execute("SELECT COUNT(*) FROM posts")
-        post_count = cursor.fetchone()[0]
-
-        # If there are no posts, return an empty list immediately
-        if post_count == 0:
-            return {
-                "posts": []
+    # Return a list of post dictionaries with likes count
+    return {
+        "posts": [
+            {
+                "id": post[0], 
+                "username": post[1], 
+                "title": post[2], 
+                "description": post[3],
+                "image": post[4],
+                "starting_price": post[5],
+                "current_bid": post[6],
+                "current_bidder_id": post[7],
+                "end_time": post[8].isoformat() if post[8] else None,
+                "duration": post[9],
+                "likes": post[10],
+                "liked": post[11] > 0
             }
-        if token:
-            hashed_token = hash_token(token)
-            cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
-            user = cursor.fetchone()
-            user_id = user[0]
-            # Fetch post details for authenticated user
-            query = """
-            SELECT 
-                p.id, p.username, p.title, p.description, 
-                COUNT(pl.id) AS likes_count,
-                SUM(CASE WHEN pl.user_id = %s THEN 1 ELSE 0 END) AS liked_by_user
-            FROM 
-                posts p
-            LEFT JOIN 
-                post_likes pl ON p.id = pl.post_id
-            GROUP BY 
-                p.id, p.username, p.title, p.description
-            """
-
-            cursor.execute(query, (user_id,))
-        else:
-            # Fetch post details for guests
-            query = """
-            SELECT 
-                p.id, p.username, p.title, p.description, 
-                COUNT(pl.id) AS likes_count,
-                0 AS liked_by_user
-            FROM 
-                posts p
-            LEFT JOIN 
-                post_likes pl ON p.id = pl.post_id
-            GROUP BY 
-                p.id, p.username, p.title, p.description
-            """
-
-            cursor.execute(query)
-
-        posts = cursor.fetchall()
-
-        # Return a list of post dictionaries with likes count
-        return {
-            "posts": [
-                {
-                    "id": post[0], 
-                    "username": post[1], 
-                    "title": post[2], 
-                    "description": post[3],
-                    "likes": post[4],
-                    "liked": post[5] > 0
-                }
-                for post in posts
-            ]
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Server error while fetching posts")
-    finally:
-        cursor.close()
+            for post in posts
+        ]
+    }
 
 """
 Handles the liking and unliking of a post.
@@ -285,32 +217,47 @@ async def toggle_like(post_id: int, request: Request, db: mysql.connector.MySQLC
         return JSONResponse(status_code=403, content={"error": "Login required to like a post."})
 
     hashed_token = hash_token(token)
-    with db.cursor() as cursor:
-        # Fetch the user id associated with this token
-        cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
-        user = cursor.fetchone()
-        if not user:
-            return JSONResponse(status_code=403, content={"error": "Invalid user."})
+    return db_manager.toggle_post_like(post_id, hashed_token, db)
 
-        user_id = user[0]
-        # Check if the user has already liked the post
-        cursor.execute("SELECT id FROM post_likes WHERE post_id = %s AND user_id = %s", (post_id, user_id))
-        result = cursor.fetchone()
+"""
+Handles websocket operations.
+"""
+@app.websocket("/websocket")
+async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.MySQLConnection = Depends(get_db)):
+    await ws_manager.connect(websocket)
 
-        if result:
-            # User has liked the post, so remove the like
-            cursor.execute("DELETE FROM post_likes WHERE id = %s", (result[0],))
-            likedByUser = False  
-        else:
-            # User hasn't liked the post, so add the like
-            cursor.execute("INSERT INTO post_likes (post_id, user_id) VALUES (%s, %s)", (post_id, user_id))
-            likedByUser = True
-        
-        db.commit()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+            except json.JSONDecodeError:
+                await ws_manager.send_personal_message("Malformed JSON", websocket)
+                continue
+            token = websocket.cookies.get("token")
+            if message["type"] == "bid":
+                if token is None:
+                    await websocket.send_text(json.dumps({"error": "Login required to bid."}))
+                    return
 
-        # Fetch the updated like count
-        cursor.execute("SELECT COUNT(id) FROM post_likes WHERE post_id = %s", (post_id,))
-        likes = cursor.fetchone()
+                # Hash the token for database verification
+                bid_value = float(message["value"])
+                auction_id = message["auction_id"]
+                result = db_manager.update_bid_if_higher(auction_id, bid_value, token, db)
+                if isinstance(result, str):
+                    await websocket.send_text(json.dumps({"error": result}))
+                    continue
+          
+                data = json.dumps({
+                    "type": "bidUpdate",
+                    "value": result["bid_value"],
+                    "auction_id": result["auction_id"]
+                })
+                await ws_manager.broadcast(data)
+            else:
+                await ws_manager.send_personal_message("Invalid data format", websocket)
 
-    return {"likes": likes[0] if likes else 0, "likedByUser": likedByUser}
-
+    except Exception as e:
+        print(f"Error occurred: {e}")
+    finally:
+        ws_manager.disconnect(websocket)

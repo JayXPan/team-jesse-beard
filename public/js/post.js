@@ -1,3 +1,5 @@
+let ws = null;
+
 /**
  * Fetch the posts from the server in JSON format.
  */
@@ -26,8 +28,12 @@ async function fetchData() {
         console.error('Error handling the JSON data:', error);
     }
 }
-fetchData();
-setInterval(fetchData, 3000); // Poll the server every 3 seconds to update posts
+
+// Call fetchData once on page load
+window.addEventListener('load', function() {
+    fetchData();
+    setupWebSocket();
+});
 
 /**
  * Display the posts to the page.
@@ -35,13 +41,24 @@ setInterval(fetchData, 3000); // Poll the server every 3 seconds to update posts
  */
 function displayPosts(posts) {
     const allPosts = document.getElementById("all-posts");
-    allPosts.innerHTML = '';
-
+    allPosts.innerHTML = '';  
     posts.forEach(post => {
         const postElement = document.createElement("div");
+        postElement.setAttribute("data-id", post.id);
         postElement.innerHTML = `
             <h3>${post.title}</h3>
             <p>${post.description}</p>
+            <img src="/static/images/${post.image}" alt="${post.title} style="width: 100%; max-height: 100px;">
+            <div class="bid-display">
+                <strong>Highest bid:</strong> <span class="bid-value">$${post.current_bid || post.starting_price}</span>
+            </div>
+            <div>
+                <div class="time-remaining"></div>
+            </div>
+            <div class="bid-section">
+                <input type="number" id="bid-input-${post.id}" min="${post.current_bid + 1 || post.starting_price + 1}" placeholder="Enter your bid">
+                <button onclick="placeBid(${post.id})">Place Bid</button>
+            </div>
             <button 
                 id="like-btn-${post.id}" 
                 onclick="toggleLike(${post.id})"
@@ -51,6 +68,9 @@ function displayPosts(posts) {
             <footer>Posted by: ${post.username}</footer>
         `;
         allPosts.appendChild(postElement);
+        const timeDisplay = postElement.querySelector('.time-remaining');
+        const endTime = new Date(post.end_time);
+        startCountdown(endTime, timeDisplay);
     });
 }
 
@@ -93,4 +113,94 @@ async function toggleLike(postId) {
         const errorData = await response.json();
         showModal(errorData.error);
     }
+}
+
+function setupWebSocket() {
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+
+    ws = new WebSocket(wsProtocol + '://' + window.location.host + '/websocket');
+
+    ws.onopen = () => {
+        console.log('WebSocket connection opened');
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'bidUpdate') {
+            updateBid(data.auction_id, data.value);
+        }
+        if (data.error) {
+            alert(data.error);
+        }
+    };
+
+    ws.onerror = (error) => {
+        console.error('WebSocket encountered an error:', error);
+    };
+
+    ws.onclose = (event) => {
+        if(event.code == 1001) {
+            console.log("WebSocket closed due to page refresh or navigation.");
+        } else {
+            console.log("WebSocket closed unexpectedly. Trying to reconnect...");
+            setTimeout(connectWebSocket, 5000);  // Try to reconnect every 5 seconds
+        }
+    };
+}
+
+/**
+ * Place a bid for a specific auction item.
+ * @param {number} postId - The ID of the post on which the bid is to be placed.
+ */
+async function placeBid(postId) {
+    const bidValue = document.getElementById(`bid-input-${postId}`).value;
+    if (!bidValue) {
+        alert('Please enter a bid amount.');
+        return;
+    }
+
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'bid',
+            value: bidValue,
+            auction_id: postId
+        }));
+    }
+}
+
+function updateBid(auction_id, value) {
+    const bidValueElement = document.querySelector(`[data-id='${auction_id}'] .bid-value`);
+    if (bidValueElement) {
+        bidValueElement.textContent = `$${value}`;
+    }
+}
+
+function startCountdown(endTime, displayElement) {
+    function updateTimer() {
+        const currentTime = new Date();
+        let difference = endTime - currentTime;
+
+        if (difference <= 0) {
+            clearInterval(interval);
+            displayElement.innerHTML = "<strong>Time Remaining:</strong> Expired";
+            return;
+        }
+
+        // Calculate days, hours, minutes, and seconds remaining
+        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+        difference -= days * (1000 * 60 * 60 * 24);
+
+        const hours = Math.floor(difference / (1000 * 60 * 60));
+        difference -= hours * (1000 * 60 * 60);
+
+        const minutes = Math.floor(difference / (1000 * 60));
+        difference -= minutes * (1000 * 60);
+
+        const seconds = Math.floor(difference / 1000);
+
+        displayElement.innerHTML = `<strong>Time Remaining:</strong> ${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    const interval = setInterval(updateTimer, 1000);
+    updateTimer();
 }

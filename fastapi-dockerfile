@@ -4,11 +4,10 @@ WORKDIR /usr/src/app
 
 COPY . .
 
-RUN pip install fastapi[all] mysql-connector-python bcrypt
+RUN pip install fastapi[all] mysql-connector-python bcrypt pytz
 
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
 RUN chmod +x /wait
 
 EXPOSE 8080
-
 CMD ["sh", "-c", "/wait --host=db --port=3306 && uvicorn main:app --host 0.0.0.0 --port 8080"]
