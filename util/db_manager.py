@@ -1,8 +1,12 @@
+import datetime
+
+import pytz
 import mysql.connector
 import hashlib
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
+MAX_BID_AMOUNT = 99999999.99
 class DatabaseManager:
 
     def hash_token(self, token):
@@ -81,12 +85,12 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def insert_post(self, username, title, description, unique_filename, starting_price, duration, db):
+    def insert_post(self, username, title, description, unique_filename, starting_price, current_bid, end_time, duration, db):
         cursor = db.cursor()
         try:
             cursor.execute(
-                "INSERT INTO posts(username, title, description, image, starting_price, duration) VALUES (%s, %s, %s, %s, %s, %s)",
-                (username, title, description, unique_filename, starting_price, duration)
+                "INSERT INTO posts(username, title, description, image, starting_price, current_bid, end_time, duration) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (username, title, description, unique_filename, starting_price, current_bid, end_time, duration)
             )
             db.commit()
         except mysql.connector.Error as err:
@@ -111,10 +115,11 @@ class DatabaseManager:
                 cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
                 user = cursor.fetchone()
                 user_id = user[0]
+                
                 # Fetch post details for authenticated user
                 query = """
                 SELECT 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration, 
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration,
                     COUNT(pl.id) AS likes_count,
                     SUM(CASE WHEN pl.user_id = %s THEN 1 ELSE 0 END) AS liked_by_user
                 FROM 
@@ -122,7 +127,7 @@ class DatabaseManager:
                 LEFT JOIN 
                     post_likes pl ON p.id = pl.post_id
                 GROUP BY 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration
                 """
 
                 cursor.execute(query, (user_id,))
@@ -130,7 +135,7 @@ class DatabaseManager:
                 # Fetch post details for guests
                 query = """
                 SELECT 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration, 
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration,
                     COUNT(pl.id) AS likes_count,
                     0 AS liked_by_user
                 FROM 
@@ -138,7 +143,7 @@ class DatabaseManager:
                 LEFT JOIN 
                     post_likes pl ON p.id = pl.post_id
                 GROUP BY 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.duration
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration
                 """
 
                 cursor.execute(query)
@@ -147,7 +152,7 @@ class DatabaseManager:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
         finally:
-            cursor.close() 
+            cursor.close()
 
 
     def toggle_post_like(self, post_id, hashed_token, db):
@@ -180,3 +185,49 @@ class DatabaseManager:
             likes = cursor.fetchone()
 
         return {"likes": likes[0] if likes else 0, "likedByUser": likedByUser}
+
+
+    def update_bid_if_higher(self, post_id, amount, hashed_token, db):
+        cursor = db.cursor()
+        try:
+            # Check if the user is the creator of the post
+            cursor.execute("SELECT username FROM posts WHERE id = %s", (post_id,))
+            creator = cursor.fetchone()
+            if creator and creator[0] == self.get_username_from_token(hashed_token, db):
+                return "Creator cannot bid on their own auction"
+
+            # Check the current highest bid
+            if amount > MAX_BID_AMOUNT:
+                return "The bid amount exceeds the maximum allowed value."
+            cursor.execute("SELECT current_bid, end_time FROM posts WHERE id = %s", (post_id,))
+            current_bid, end_time = cursor.fetchone()
+
+            eastern = pytz.timezone('US/Eastern')
+            current_time_in_eastern = datetime.datetime.now(eastern)
+            if end_time.tzinfo is None:
+                end_time = eastern.localize(end_time)
+            if current_time_in_eastern >= end_time:
+                return "Auction has ended"
+
+            if amount <= current_bid:
+                return "Bid amount must be greater than the current bid"
+
+            # Fetch user id from token
+            cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
+            user_id = cursor.fetchone()[0]
+
+            # Insert bid into bids table
+            cursor.execute("INSERT INTO bids(post_id, user_id, amount) VALUES (%s, %s, %s)",
+                        (post_id, user_id, amount))
+
+            # Update current bid and bidder in posts table
+            cursor.execute("UPDATE posts SET current_bid = %s, current_bidder_id = %s WHERE id = %s",
+                        (amount, user_id, post_id))
+            
+            db.commit()
+            return {"status": "success", "message": "Bid placed successfully", "bid_value": amount, "auction_id": post_id}
+
+        except Exception as e:
+            return str(e)
+        finally:
+            cursor.close()
