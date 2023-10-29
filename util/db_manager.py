@@ -189,6 +189,8 @@ class DatabaseManager:
     def update_bid_if_higher(self, post_id, amount, token, db):
         cursor = db.cursor()
         try:
+            hashed_token = self.hash_token(token)
+
             # Check if the user is the creator of the post
             cursor.execute("SELECT username FROM posts WHERE id = %s", (post_id,))
             creator = cursor.fetchone()
@@ -209,7 +211,7 @@ class DatabaseManager:
                 return "Auction has ended"
 
             if amount <= current_bid:
-                return "Bid amount must be greater than the current bid"
+                return "Bid amount must be greater than the current highest bid"
 
             # Fetch user id from token
             cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))

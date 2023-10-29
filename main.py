@@ -1,6 +1,7 @@
 import datetime
 import pytz
 import json
+import uuid
 import fastapi
 import mysql.connector
 import bcrypt
@@ -130,7 +131,6 @@ async def make_post(
             return JSONResponse(status_code=403, content={"error": "Please register and login with your account to make a post."})
         
         username = result[0]
-        user_id = result[1]
         if not os.path.exists("public/images"):
             os.makedirs("public/images")
 
@@ -138,7 +138,7 @@ async def make_post(
         if file_extension not in ALLOWED_IMAGE_EXTENSIONS:
             return JSONResponse(status_code=400, content={"error": "Invalid image file format."})
         # Generate a unique filename
-        unique_filename = f"item_{user_id}_image{file_extension}"
+        unique_filename = f"item_{str(uuid.uuid4())[:10]}_image{file_extension}"
         image_path = os.path.join("public/images", unique_filename)
         with open(image_path, "wb") as buffer:
             while True:
