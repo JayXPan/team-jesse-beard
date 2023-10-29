@@ -187,13 +187,13 @@ class DatabaseManager:
         return {"likes": likes[0] if likes else 0, "likedByUser": likedByUser}
 
 
-    def update_bid_if_higher(self, post_id, amount, hashed_token, db):
+    def update_bid_if_higher(self, post_id, amount, token, db):
         cursor = db.cursor()
         try:
             # Check if the user is the creator of the post
             cursor.execute("SELECT username FROM posts WHERE id = %s", (post_id,))
             creator = cursor.fetchone()
-            if creator and creator[0] == self.get_username_from_token(hashed_token, db):
+            if creator and creator[0] == self.get_username_from_token(token, db):
                 return "Creator cannot bid on their own auction"
 
             # Check the current highest bid

@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import pytz
 import json
@@ -231,10 +230,9 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                     return
 
                 # Hash the token for database verification
-                hashed_token = hash_token(token)
                 bid_value = float(message["value"])
                 auction_id = message["auction_id"]
-                result = db_manager.update_bid_if_higher(auction_id, bid_value, hashed_token, db)
+                result = db_manager.update_bid_if_higher(auction_id, bid_value, token, db)
                 if isinstance(result, str):
                     await websocket.send_text(json.dumps({"error": result}))
                     continue
