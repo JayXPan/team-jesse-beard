@@ -1,3 +1,5 @@
+let ws = null;
+
 /**
  * Fetch the posts from the server in JSON format.
  */
@@ -29,8 +31,8 @@ async function fetchData() {
 
 // Call fetchData once on page load
 window.addEventListener('load', function() {
-    setupWebSocket();
     fetchData();
+    setupWebSocket();
 });
 
 /**
@@ -42,16 +44,6 @@ function displayPosts(posts) {
     allPosts.innerHTML = '';  
     posts.forEach(post => {
         const postElement = document.createElement("div");
-        // const currentTime = new Date();
-        // const endTime = new Date(post.end_time);
-        // const timeDifference = endTime - currentTime;
-        // let timeDisplay;
-        // if (timeDifference <= 0) {
-        //     timeDisplay = "Expired";
-        // } else {
-        //     const minutesRemaining = Math.floor(timeDifference / (1000 * 60));
-        //     timeDisplay = `${minutesRemaining} minutes`;
-        // }
         postElement.setAttribute("data-id", post.id);
         postElement.innerHTML = `
             <h3>${post.title}</h3>
@@ -123,8 +115,6 @@ async function toggleLike(postId) {
     }
 }
 
-let ws = null;
-
 function setupWebSocket() {
     const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 
@@ -136,10 +126,7 @@ function setupWebSocket() {
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-
-        if (data.type === 'postsUpdated') {
-            fetchData();
-        } else if (data.type === 'bidUpdate') {
+        if (data.type === 'bidUpdate') {
             updateBid(data.auction_id, data.value);
         }
         if (data.error) {
@@ -152,8 +139,12 @@ function setupWebSocket() {
     };
 
     ws.onclose = (event) => {
-        console.log('WebSocket connection closed:', event);
-        setTimeout(setupWebSocket, 5000); // Try to reconnect every 5 seconds
+        if(event.code == 1001) {
+            console.log("WebSocket closed due to page refresh or navigation.");
+        } else {
+            console.log("WebSocket closed unexpectedly. Trying to reconnect...");
+            setTimeout(connectWebSocket, 5000);  // Try to reconnect every 5 seconds
+        }
     };
 }
 

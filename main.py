@@ -20,6 +20,7 @@ from typing import Optional
 
 CHUNK_SIZE = 2048
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+MAX_BID_AMOUNT = 99999999.99
 app = FastAPI()
 db_manager = DatabaseManager()
 ws_manager = WebSocketManager()
@@ -149,6 +150,8 @@ async def make_post(
         eastern = pytz.timezone('US/Eastern')
         end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
         current_bid = starting_price
+        if starting_price > MAX_BID_AMOUNT:
+            return JSONResponse(status_code=400, content={"error": "The starting price exceeds the maximum allowed value."})
         db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time, duration, db)
 
         # Respond with the post details
@@ -163,9 +166,17 @@ async def make_post(
              "duration": duration})
 
         return response
-    
-    except HTTPException as he:
-        raise he
+    except OverflowError:
+        return JSONResponse(status_code=400, content={"error": "Duration results in an invalid end time."})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except mysql.connector.Error as err:
+        if err.errno == mysql.connector.errorcode.ER_DATA_TOO_LONG:
+            return JSONResponse(status_code=400, content={"error": "Input data too long."})
+        elif err.errno == mysql.connector.errorcode.ER_TRUNCATED_WRONG_VALUE:
+            return JSONResponse(status_code=400, content={"error": "Invalid data format."})
+        else:
+            raise HTTPException(status_code=500, detail=str(err))
 
 """
 Endpoint to retrieve all the posts.
@@ -209,7 +220,7 @@ async def toggle_like(post_id: int, request: Request, db: mysql.connector.MySQLC
     return db_manager.toggle_post_like(post_id, hashed_token, db)
 
 """
-Handles websocket connections.
+Handles websocket operations.
 """
 @app.websocket("/websocket")
 async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.MySQLConnection = Depends(get_db)):
@@ -223,8 +234,8 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
             except json.JSONDecodeError:
                 await ws_manager.send_personal_message("Malformed JSON", websocket)
                 continue
+            token = websocket.cookies.get("token")
             if message["type"] == "bid":
-                token = websocket.cookies.get("token")
                 if token is None:
                     await websocket.send_text(json.dumps({"error": "Login required to bid."}))
                     return
@@ -236,17 +247,11 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                 if isinstance(result, str):
                     await websocket.send_text(json.dumps({"error": result}))
                     continue
-
-                
+          
                 data = json.dumps({
                     "type": "bidUpdate",
                     "value": result["bid_value"],
                     "auction_id": result["auction_id"]
-                })
-                await ws_manager.broadcast(data)
-            elif message["type"] == "post":
-                data = json.dumps({
-                    "type": "postsUpdated"
                 })
                 await ws_manager.broadcast(data)
             else:
