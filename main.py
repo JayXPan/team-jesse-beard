@@ -1,3 +1,7 @@
+import asyncio
+import datetime
+import pytz
+import json
 import fastapi
 import mysql.connector
 import bcrypt
@@ -108,7 +112,6 @@ async def make_post(
     starting_price: Optional[float] = Form(None),
     duration: Optional[int] = Form(None)
 ):
-
     if not title or not description or not uploaded_image.filename or not starting_price or not duration:
         return JSONResponse(status_code=400, content={"error": "All fields are required."})
 
@@ -144,7 +147,10 @@ async def make_post(
                 if not chunk:
                     break
                 buffer.write(chunk)
-        db_manager.insert_post(username, title, description, unique_filename, starting_price, duration, db)
+        eastern = pytz.timezone('US/Eastern')
+        end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
+        current_bid = starting_price
+        db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time, duration, db)
 
         # Respond with the post details
         response = JSONResponse(
@@ -153,6 +159,8 @@ async def make_post(
              "description": html.escape(description),
              "image": html.escape(image_path),
              "starting_price": starting_price,
+             "current_bid": current_bid,
+             "end_time": end_time.isoformat(),
              "duration": duration})
 
         return response
@@ -178,9 +186,12 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
                 "description": post[3],
                 "image": post[4],
                 "starting_price": post[5],
-                "duration": post[6],
-                "likes": post[7],
-                "liked": post[8] > 0
+                "current_bid": post[6],
+                "current_bidder_id": post[7],
+                "end_time": post[8].isoformat() if post[8] else None,
+                "duration": post[9],
+                "likes": post[10],
+                "liked": post[11] > 0
             }
             for post in posts
         ]
@@ -201,22 +212,48 @@ async def toggle_like(post_id: int, request: Request, db: mysql.connector.MySQLC
 """
 Handles websocket connections.
 """
-@app.websocket("/ws")
+@app.websocket("/websocket")
 async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.MySQLConnection = Depends(get_db)):
     await ws_manager.connect(websocket)
+
     try:
         while True:
             data = await websocket.receive_text()
-            # Here, you can handle incoming data, such as bids
-            # For example, if a user sends a bid, you can update the bid in the database
-            # and broadcast the new bid to all connected users.
-            if data.startswith("bid:"):
-                bid_value = float(data.split(":")[1])
-                is_valid_bid = db_manager.update_bid_if_higher(auction_id, bid_value, db)
-                if is_valid_bid:
-                    await ws_manager.broadcast(f"New bid: {bid_value} for auction {auction_id}")
+            try:
+                message = json.loads(data)
+            except json.JSONDecodeError:
+                await ws_manager.send_personal_message("Malformed JSON", websocket)
+                continue
+            if message["type"] == "bid":
+                token = websocket.cookies.get("token")
+                if token is None:
+                    await websocket.send_text(json.dumps({"error": "Login required to bid."}))
+                    return
+
+                # Hash the token for database verification
+                hashed_token = hash_token(token)
+                bid_value = float(message["value"])
+                auction_id = message["auction_id"]
+                result = db_manager.update_bid_if_higher(auction_id, bid_value, hashed_token, db)
+                if isinstance(result, str):
+                    await websocket.send_text(json.dumps({"error": result}))
+                    continue
+
+                
+                data = json.dumps({
+                    "type": "bidUpdate",
+                    "value": result["bid_value"],
+                    "auction_id": result["auction_id"]
+                })
+                await ws_manager.broadcast(data)
+            elif message["type"] == "post":
+                data = json.dumps({
+                    "type": "postsUpdated"
+                })
+                await ws_manager.broadcast(data)
             else:
                 await ws_manager.send_personal_message("Invalid data format", websocket)
+
     except Exception as e:
         print(f"Error occurred: {e}")
     finally:
