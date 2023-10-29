@@ -14,6 +14,6 @@ class WebSocketManager:
     async def send_personal_message(self, message: str, websocket: fastapi.WebSocket):
         await websocket.send_text(message)
 
-    async def broadcast(self, message: str):
+    async def broadcast(self, data: str):
         for connection in self.active_connections:
-            await connection.send_text(message)
+            await connection.send_text(data)
