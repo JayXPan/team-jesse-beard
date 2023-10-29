@@ -1,5 +1,4 @@
 import datetime
-
 import pytz
 import mysql.connector
 import hashlib
