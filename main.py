@@ -1,6 +1,7 @@
 import datetime
 import pytz
 import json
+import decimal
 import uuid
 import fastapi
 import mysql.connector
@@ -66,6 +67,13 @@ def check_ended_auctions():
         next(db_gen, None)
     
 scheduler.add_job(check_ended_auctions, trigger='interval', seconds=5)
+
+def encoder(obj):
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -279,6 +287,15 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                     "value": result["bid_value"],
                     "auction_id": result["auction_id"]
                 })
+                await ws_manager.broadcast(data)
+            elif message["type"] == "newPostRequest":
+                # Fetch latest post from the database
+                latest_post = db_manager.get_all_posts(token, db)
+
+                data = json.dumps({
+                    "type": "newPost",
+                    "post": latest_post
+                }, default=encoder)
                 await ws_manager.broadcast(data)
             else:
                 await ws_manager.send_personal_message("Invalid data format", websocket)

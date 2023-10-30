@@ -130,6 +130,10 @@ async function handlePostSubmit(event) {
     if (response.ok) {
         const responseData = await response.json();
         const message = `Post by ${responseData.username}: "${responseData.title}" has been successfully created!`;
+        const ws_message = {
+            type: "newPostRequest"
+        };
+        ws.send(JSON.stringify(ws_message));
         showModal(message);
         fetchData();
     } else {
@@ -168,8 +172,10 @@ function setupWebSocket() {
         const data = JSON.parse(event.data);
         if (data.type === 'bidUpdate') {
             updateBid(data.auction_id, data.value);
-        }
-        if (data.error) {
+        } else if (data.type === 'newPost') {
+            const posts = data.post.map(convertArrayToPostObject);
+            displayPosts(posts);
+        } else if (data.error) {
             alert(data.error);
         }
     };
@@ -182,6 +188,7 @@ function setupWebSocket() {
         if(event.code == 1001) {
             console.log("WebSocket closed due to page refresh or navigation.");
         } else {
+            console.log(`WebSocket closed unexpectedly with code ${event.code}. Reason: ${event.reason}`);
             console.log("WebSocket closed unexpectedly. Trying to reconnect...");
             setTimeout(setupWebSocket(), 5000);  // Try to reconnect every 5 seconds
         }
@@ -255,4 +262,23 @@ function toggleDropdown(dropdownId) {
     // Show the clicked dropdown
     const dropdownContent = document.getElementById(dropdownId);
     dropdownContent.style.display = dropdownContent.style.display === 'none' ? 'block' : 'none';
+}
+
+function convertArrayToPostObject(arr) {
+    return {
+        id: arr[0],
+        username: arr[1],
+        title: arr[2],
+        description: arr[3],
+        image: arr[4],
+        starting_price: arr[5],
+        current_bid: arr[6],
+        current_bidder: arr[7],
+        end_time: arr[8],
+        duration: arr[9],
+        winner: arr[10],
+        winning_bid: arr[11],
+        likes: arr[12],
+        liked: arr[13]
+    };
 }
