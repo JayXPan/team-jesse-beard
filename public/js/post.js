@@ -41,7 +41,11 @@ window.addEventListener('load', function() {
  */
 function displayPosts(posts) {
     const allPosts = document.getElementById("all-posts");
-    allPosts.innerHTML = '';  
+    const auctionsWon = document.getElementById("auctions-won");
+    const auctionsCreated = document.getElementById("auctions-created");
+    allPosts.innerHTML = '';
+    auctionsWon.innerHTML = '';
+    const currentUsername = document.getElementById("usernameText").textContent;
     posts.forEach(post => {
         const postElement = document.createElement("div");
         const currentTime = new Date();
@@ -83,7 +87,28 @@ function displayPosts(posts) {
             </button>
             <footer>Posted by: ${post.username}</footer>
         `;
-        allPosts.appendChild(postElement);
+        // Add to All Auctions
+        const postCloneForAll = postElement.cloneNode(true);
+        const timeDisplayAll = postCloneForAll.querySelector('.time-remaining');
+        startCountdown(endTime, timeDisplayAll);
+        allPosts.appendChild(postCloneForAll);
+
+        // For Auctions Won by the user
+        if (currentTime > endTime && post.winner === currentUsername) {
+            const postCloneForWon = postElement.cloneNode(true);
+            const timeDisplayWon = postCloneForWon.querySelector('.time-remaining');
+            startCountdown(endTime, timeDisplayWon);
+            auctionsWon.appendChild(postCloneForWon);
+        } 
+
+        // For Auctions Created by the user
+        if (currentUsername === post.username) {
+            const postCloneForCreated = postElement.cloneNode(true);
+            const timeDisplayCreated = postCloneForCreated.querySelector('.time-remaining');
+            startCountdown(endTime, timeDisplayCreated);
+            auctionsCreated.appendChild(postCloneForCreated);
+        }
+        
         const timeDisplay = postElement.querySelector('.time-remaining');
         startCountdown(endTime, timeDisplay);
     });
@@ -218,4 +243,16 @@ function startCountdown(endTime, displayElement) {
 
     const interval = setInterval(updateTimer, 1000);
     updateTimer();
+}
+
+function toggleDropdown(dropdownId) {
+    // Hide all dropdowns first
+    const dropdownContents = document.querySelectorAll('.dropdown-content');
+    dropdownContents.forEach(dropdown => {
+        dropdown.style.display = 'none';
+    });
+
+    // Show the clicked dropdown
+    const dropdownContent = document.getElementById(dropdownId);
+    dropdownContent.style.display = dropdownContent.style.display === 'none' ? 'block' : 'none';
 }

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS posts (
     image VARCHAR(255),
     starting_price DECIMAL(10, 2),
     current_bid DECIMAL(10, 2),
-    current_bidder VARCHAR(255),
+    current_bidder VARCHAR(255) DEFAULT NULL,
     winner VARCHAR(255) DEFAULT NULL,
     winning_bid DECIMAL(10, 2) DEFAULT NULL,
     duration INT,

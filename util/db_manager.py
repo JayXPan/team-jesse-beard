@@ -249,7 +249,7 @@ class DatabaseManager:
         
         # Fetch the highest bidder and bid for the auction
         query = """
-            SELECT current_bidder, current_bid 
+            SELECT current_bidder, current_bid
             FROM posts 
             WHERE id = %s
         """
