@@ -24,6 +24,7 @@ services:
     depends_on:
       - db
     environment:
+      - WAIT_HOSTS_TIMEOUT=60
       - WAIT_HOSTS=db:3306
       - DB_HOST=db
       - DB_USER=root
