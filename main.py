@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mysql.connector.pooling import MySQLConnectionPool
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.executors.pool import ThreadPoolExecutor
 from typing import Optional
 
 CHUNK_SIZE = 2048
@@ -24,6 +26,11 @@ MAX_BID_AMOUNT = 99999999.99
 app = FastAPI()
 db_manager = DatabaseManager()
 ws_manager = WebSocketManager()
+executors = {
+    'default': ThreadPoolExecutor(20),
+}
+scheduler = BackgroundScheduler(executors=executors)
+scheduler.start()
 
 app.mount("/static", StaticFiles(directory="public"), name="static")
 templates = Jinja2Templates(directory="view")
@@ -46,6 +53,23 @@ def get_db():
 
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
+
+def check_ended_auctions():
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        ended_auctions = db_manager.get_ended_auctions_without_winners(db)
+        for auction in ended_auctions:
+            db_manager.update_auction_winner(auction['id'], db)
+    finally:
+        # This will trigger the "finally" block in get_db() to close the connection
+        next(db_gen, None)
+    
+scheduler.add_job(check_ended_auctions, trigger='interval', seconds=5)
+
+@app.on_event("shutdown")
+def shutdown_event():
+    scheduler.shutdown()
 
 @app.middleware("http")
 async def add_custom_headers(request, call_next):
@@ -197,11 +221,13 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
                 "image": post[4],
                 "starting_price": post[5],
                 "current_bid": post[6],
-                "current_bidder_id": post[7],
+                "current_bidder": post[7],
                 "end_time": post[8].isoformat() if post[8] else None,
                 "duration": post[9],
-                "likes": post[10],
-                "liked": post[11] > 0
+                "winner": post[10], 
+                "winning_bid": float(post[11]) if post[11] else None,
+                "likes": post[12],
+                "liked": post[13] > 0
             }
             for post in posts
         ]

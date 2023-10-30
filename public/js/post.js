@@ -44,14 +44,30 @@ function displayPosts(posts) {
     allPosts.innerHTML = '';  
     posts.forEach(post => {
         const postElement = document.createElement("div");
+        const currentTime = new Date();
+        const endTime = new Date(post.end_time);
+        let bidLabel = 'Highest bid:';
+        let bidValue = post.current_bid || post.starting_price;
+        let winnerSectionHTML = '';
+
+        if (currentTime > endTime) {
+            bidLabel = 'Winning bid:';
+            bidValue = post.winning_bid || bidValue;
+
+            if (post.winner) {
+                winnerSectionHTML = `<div><strong>Winner:</strong> ${post.winner}</div>`;
+            }
+        }
+
         postElement.setAttribute("data-id", post.id);
         postElement.innerHTML = `
             <h3>${post.title}</h3>
             <p>${post.description}</p>
             <img src="/static/images/${post.image}" alt="${post.title} style="width: 100%; max-height: 100px;">
             <div class="bid-display">
-                <strong>Highest bid:</strong> <span class="bid-value">$${post.current_bid || post.starting_price}</span>
+                <strong>${bidLabel}</strong> <span class="bid-value">$${bidValue}</span>
             </div>
+            ${winnerSectionHTML}
             <div>
                 <div class="time-remaining"></div>
             </div>
@@ -69,7 +85,6 @@ function displayPosts(posts) {
         `;
         allPosts.appendChild(postElement);
         const timeDisplay = postElement.querySelector('.time-remaining');
-        const endTime = new Date(post.end_time);
         startCountdown(endTime, timeDisplay);
     });
 }
@@ -143,7 +158,7 @@ function setupWebSocket() {
             console.log("WebSocket closed due to page refresh or navigation.");
         } else {
             console.log("WebSocket closed unexpectedly. Trying to reconnect...");
-            setTimeout(connectWebSocket, 5000);  // Try to reconnect every 5 seconds
+            setTimeout(setupWebSocket(), 5000);  // Try to reconnect every 5 seconds
         }
     };
 }
