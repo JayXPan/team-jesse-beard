@@ -159,15 +159,21 @@ async function toggleLike(postId) {
     }
 }
 
+/**
+ * Setup the WebSocket connection and event listeners
+ */
 function setupWebSocket() {
+    // Determine the WebSocket protocol based on the current window protocol
     const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 
+    // Initialize WebSocket with the appropriate URL
     ws = new WebSocket(wsProtocol + '://' + window.location.host + '/websocket');
 
     ws.onopen = () => {
         console.log('WebSocket connection opened');
     };
 
+    // Handle incoming WebSocket messages
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'bidUpdate') {
@@ -215,6 +221,9 @@ async function placeBid(postId) {
     }
 }
 
+/**
+ * Update the displayed bid value for an auction
+ */
 function updateBid(auction_id, value) {
     const bidValueElement = document.querySelector(`[data-id='${auction_id}'] .bid-value`);
     if (bidValueElement) {
@@ -222,6 +231,9 @@ function updateBid(auction_id, value) {
     }
 }
 
+/**
+ * Start a countdown timer for the auction, updating the displayed time remaining
+ */
 function startCountdown(endTime, displayElement) {
     function updateTimer() {
         const currentTime = new Date();
@@ -252,6 +264,9 @@ function startCountdown(endTime, displayElement) {
     updateTimer();
 }
 
+/**
+ * Toggle the visibility of a dropdown menu
+ */
 function toggleDropdown(dropdownId) {
     // Hide all dropdowns first
     const dropdownContents = document.querySelectorAll('.dropdown-content');
@@ -264,6 +279,9 @@ function toggleDropdown(dropdownId) {
     dropdownContent.style.display = dropdownContent.style.display === 'none' ? 'block' : 'none';
 }
 
+/**
+ * Convert an array of post data to a structured post object
+ */
 function convertArrayToPostObject(arr) {
     return {
         id: arr[0],

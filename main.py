@@ -45,29 +45,48 @@ dbconfig = {
 }
 pool = MySQLConnectionPool(pool_name="mypool", pool_size=10, **dbconfig)
 
+"""
+Create a database connection using a connection pool
+"""
 def get_db():
     connection = pool.get_connection()
     try:
+        # Yield the connection for usage by the caller
         yield connection
     finally:
+        # Ensure that the connection is closed after usage
         connection.close()
 
+"""
+Hash a given token using SHA-256
+"""
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
+"""
+Check for auctions that have ended but do not have winners, and update them
+"""
 def check_ended_auctions():
     db_gen = get_db()
     db = next(db_gen)
     try:
+        # Get all ended auctions without winners
         ended_auctions = db_manager.get_ended_auctions_without_winners(db)
         for auction in ended_auctions:
+            # Update the winner for each ended auction
             db_manager.update_auction_winner(auction['id'], db)
     finally:
         # This will trigger the "finally" block in get_db() to close the connection
         next(db_gen, None)
-    
+
+"""
+Schedule the check_ended_auctions function to run at regular intervals (every 5 seconds)
+"""
 scheduler.add_job(check_ended_auctions, trigger='interval', seconds=5)
 
+"""
+Custom encoder function to handle non-JSON serializable objects
+"""
 def encoder(obj):
     if isinstance(obj, decimal.Decimal):
         return float(obj)
@@ -75,10 +94,19 @@ def encoder(obj):
         return obj.isoformat()
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
+"""
+Event handler for application shutdown
+"""
 @app.on_event("shutdown")
 def shutdown_event():
+    # Shut down the scheduled job to avoid any lingering tasks
     scheduler.shutdown()
 
+"""
+Middleware to add custom headers to HTTP responses.
+
+This middleware adds the X-Content-Type-Options header with a value of nosniff to prevent browsers from MIME-sniffing a response away from the declared content-type.
+"""
 @app.middleware("http")
 async def add_custom_headers(request, call_next):
     response = await call_next(request)
