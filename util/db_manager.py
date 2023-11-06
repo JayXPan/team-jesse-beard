@@ -217,13 +217,8 @@ class DatabaseManager:
             cursor.execute("SELECT username FROM users WHERE hashed_token = %s", (hashed_token,))
             username = cursor.fetchone()[0]
 
-            # # Insert bid into bids table
-            # cursor.execute("INSERT INTO bids(post_id, user_id, amount) VALUES (%s, %s, %s)",
-            #             (post_id, user_id, amount))
-
             # Update current bid and bidder in posts table
-            cursor.execute("UPDATE posts SET current_bid = %s, current_bidder = %s WHERE id = %s",
-                        (amount, username, post_id))
+            cursor.execute("UPDATE posts SET current_bid = %s, current_bidder = %s WHERE id = %s", (amount, username, post_id))
             
             db.commit()
             return {"status": "success", "message": "Bid placed successfully", "bid_value": amount, "auction_id": post_id}

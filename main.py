@@ -80,11 +80,6 @@ def check_ended_auctions():
         next(db_gen, None)
 
 """
-Schedule the check_ended_auctions function to run at regular intervals (every 5 seconds)
-"""
-scheduler.add_job(check_ended_auctions, trigger='interval', seconds=5)
-
-"""
 Custom encoder function to handle non-JSON serializable objects
 """
 def encoder(obj):
@@ -302,7 +297,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                     await websocket.send_text(json.dumps({"error": "Login required to bid."}))
                     return
 
-                # Hash the token for database verification
                 bid_value = float(message["value"])
                 auction_id = message["auction_id"]
                 result = db_manager.update_bid_if_higher(auction_id, bid_value, token, db)
@@ -332,3 +326,8 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
         print(f"Error occurred: {e}")
     finally:
         ws_manager.disconnect(websocket)
+
+"""
+Schedule the check_ended_auctions function to run at regular intervals (every 5 seconds)
+"""
+scheduler.add_job(check_ended_auctions, trigger='interval', seconds=5)
