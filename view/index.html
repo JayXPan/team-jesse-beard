@@ -90,7 +90,20 @@
 				</form>
 		</div>
 		<div class="posts">
-			<div id="all-posts"></div>
+			<div class="dropdown">
+				<button class="dropbtn" onclick="toggleDropdown('all-posts')">All Auctions</button>
+				<div class="dropdown-content" id="all-posts"></div>
+			</div>
+		
+			<div class="dropdown">
+				<button class="dropbtn" onclick="toggleDropdown('auctions-won')">Auctions Won</button>
+				<div class="dropdown-content" id="auctions-won"></div>
+			</div>
+		
+			<div class="dropdown">
+				<button class="dropbtn" onclick="toggleDropdown('auctions-created')">Auctions Created</button>
+				<div class="dropdown-content" id="auctions-created"></div>
+			</div>
 		</div>
 	</div>
 

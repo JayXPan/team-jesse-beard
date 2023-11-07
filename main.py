@@ -1,6 +1,7 @@
 import datetime
 import pytz
 import json
+import decimal
 import uuid
 import fastapi
 import mysql.connector
@@ -16,6 +17,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mysql.connector.pooling import MySQLConnectionPool
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.executors.pool import ThreadPoolExecutor
 from typing import Optional
 
 CHUNK_SIZE = 2048
@@ -24,6 +27,11 @@ MAX_BID_AMOUNT = 99999999.99
 app = FastAPI()
 db_manager = DatabaseManager()
 ws_manager = WebSocketManager()
+executors = {
+    'default': ThreadPoolExecutor(20),
+}
+scheduler = BackgroundScheduler(executors=executors)
+scheduler.start()
 
 app.mount("/static", StaticFiles(directory="public"), name="static")
 templates = Jinja2Templates(directory="view")
@@ -37,16 +45,63 @@ dbconfig = {
 }
 pool = MySQLConnectionPool(pool_name="mypool", pool_size=10, **dbconfig)
 
+"""
+Create a database connection using a connection pool
+"""
 def get_db():
     connection = pool.get_connection()
     try:
+        # Yield the connection for usage by the caller
         yield connection
     finally:
+        # Ensure that the connection is closed after usage
         connection.close()
 
+"""
+Hash a given token using SHA-256
+"""
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
+"""
+Check for auctions that have ended but do not have winners, and update them
+"""
+def check_ended_auctions():
+    db_gen = get_db()
+    db = next(db_gen)
+    try:
+        # Get all ended auctions without winners
+        ended_auctions = db_manager.get_ended_auctions_without_winners(db)
+        for auction in ended_auctions:
+            # Update the winner for each ended auction
+            db_manager.update_auction_winner(auction['id'], db)
+    finally:
+        # This will trigger the "finally" block in get_db() to close the connection
+        next(db_gen, None)
+
+"""
+Custom encoder function to handle non-JSON serializable objects
+"""
+def encoder(obj):
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+"""
+Event handler for application shutdown
+"""
+@app.on_event("shutdown")
+def shutdown_event():
+    # Shut down the scheduled job to avoid any lingering tasks
+    scheduler.shutdown()
+
+"""
+Middleware to add custom headers to HTTP responses.
+
+This middleware adds the X-Content-Type-Options header with a value of nosniff to prevent browsers from MIME-sniffing a response away from the declared content-type.
+"""
 @app.middleware("http")
 async def add_custom_headers(request, call_next):
     response = await call_next(request)
@@ -147,12 +202,16 @@ async def make_post(
                 if not chunk:
                     break
                 buffer.write(chunk)
-        eastern = pytz.timezone('US/Eastern')
-        end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
+        utc_now = datetime.datetime.now(pytz.utc)
+        end_time_utc = utc_now + datetime.timedelta(minutes=duration)
+        # eastern = pytz.timezone('US/Eastern')
+        # end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
         current_bid = starting_price
         if starting_price > MAX_BID_AMOUNT:
             return JSONResponse(status_code=400, content={"error": "The starting price exceeds the maximum allowed value."})
-        db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time, duration, db)
+        db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time_utc, duration, db)
+        eastern = pytz.timezone('US/Eastern')
+        end_time_eastern = end_time_utc.astimezone(eastern)
 
         # Respond with the post details
         response = JSONResponse(
@@ -162,7 +221,7 @@ async def make_post(
              "image": html.escape(image_path),
              "starting_price": starting_price,
              "current_bid": current_bid,
-             "end_time": end_time.isoformat(),
+             "end_time": end_time_eastern.isoformat(),
              "duration": duration})
 
         return response
@@ -184,7 +243,20 @@ Endpoint to retrieve all the posts.
 @app.get("/get-posts/")
 async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     token = request.cookies.get("token")
-    posts = db_manager.get_all_posts(token, db)
+    utc_zone = pytz.utc
+    eastern_zone = pytz.timezone('US/Eastern')
+    posts_data = db_manager.get_all_posts(token, db)
+
+    posts = []
+    for post_tuple in posts_data:
+        post = list(post_tuple)
+
+        if post[8]:
+            # Convert the UTC end_time from the database to Eastern Time
+            eastern_end_time = utc_zone.localize(post[8]).astimezone(eastern_zone)
+            post[8] = eastern_end_time.isoformat()  # Modify the end_time value
+
+        posts.append(post)
 
     # Return a list of post dictionaries with likes count
     return {
@@ -197,11 +269,13 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
                 "image": post[4],
                 "starting_price": post[5],
                 "current_bid": post[6],
-                "current_bidder_id": post[7],
-                "end_time": post[8].isoformat() if post[8] else None,
+                "current_bidder": post[7],
+                "end_time": post[8],
                 "duration": post[9],
-                "likes": post[10],
-                "liked": post[11] > 0
+                "winner": post[10], 
+                "winning_bid": float(post[11]) if post[11] else None,
+                "likes": post[12],
+                "liked": post[13] > 0
             }
             for post in posts
         ]
@@ -225,6 +299,8 @@ Handles websocket operations.
 @app.websocket("/websocket")
 async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.MySQLConnection = Depends(get_db)):
     await ws_manager.connect(websocket)
+    utc_zone = pytz.utc
+    eastern_zone = pytz.timezone('US/Eastern')
 
     try:
         while True:
@@ -240,7 +316,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                     await websocket.send_text(json.dumps({"error": "Login required to bid."}))
                     return
 
-                # Hash the token for database verification
                 bid_value = float(message["value"])
                 auction_id = message["auction_id"]
                 result = db_manager.update_bid_if_higher(auction_id, bid_value, token, db)
@@ -254,6 +329,26 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                     "auction_id": result["auction_id"]
                 })
                 await ws_manager.broadcast(data)
+            elif message["type"] == "newPostRequest":
+                latest_posts = db_manager.get_all_posts(token, db)
+
+                posts = []
+                # Convert end_time of each post from UTC to Eastern Time
+                for post_tuple in latest_posts:
+                    post = list(post_tuple)
+                    if post[8]:
+                        # Convert to Eastern Time
+                        eastern_end_time = utc_zone.localize(post[8]).astimezone(eastern_zone)
+                        # Update the end_time to the ISO format string in Eastern Time
+                        post[8] = eastern_end_time.isoformat()
+                        # Update the original post with the new end_time
+                    posts.append(post)
+
+                data = json.dumps({
+                    "type": "newPost",
+                    "post": posts
+                }, default=encoder)
+                await ws_manager.broadcast(data)
             else:
                 await ws_manager.send_personal_message("Invalid data format", websocket)
 
@@ -261,3 +356,8 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
         print(f"Error occurred: {e}")
     finally:
         ws_manager.disconnect(websocket)
+
+"""
+Schedule the check_ended_auctions function to run at regular intervals (every 5 seconds)
+"""
+scheduler.add_job(check_ended_auctions, trigger='interval', seconds=5)

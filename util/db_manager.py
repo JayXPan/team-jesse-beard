@@ -118,7 +118,7 @@ class DatabaseManager:
                 # Fetch post details for authenticated user
                 query = """
                 SELECT 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration,
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder, p.end_time, p.duration, p.winner, p.winning_bid,
                     COUNT(pl.id) AS likes_count,
                     SUM(CASE WHEN pl.user_id = %s THEN 1 ELSE 0 END) AS liked_by_user
                 FROM 
@@ -126,7 +126,7 @@ class DatabaseManager:
                 LEFT JOIN 
                     post_likes pl ON p.id = pl.post_id
                 GROUP BY 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder, p.end_time, p.duration, p.winner, p.winning_bid
                 """
 
                 cursor.execute(query, (user_id,))
@@ -134,7 +134,7 @@ class DatabaseManager:
                 # Fetch post details for guests
                 query = """
                 SELECT 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration,
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder, p.end_time, p.duration, p.winner, p.winning_bid,
                     COUNT(pl.id) AS likes_count,
                     0 AS liked_by_user
                 FROM 
@@ -142,7 +142,7 @@ class DatabaseManager:
                 LEFT JOIN 
                     post_likes pl ON p.id = pl.post_id
                 GROUP BY 
-                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder_id, p.end_time, p.duration
+                    p.id, p.username, p.title, p.description, p.image, p.starting_price, p.current_bid, p.current_bidder, p.end_time, p.duration, p.winner, p.winning_bid
                 """
 
                 cursor.execute(query)
@@ -214,16 +214,11 @@ class DatabaseManager:
                 return "Bid amount must be greater than the current highest bid"
 
             # Fetch user id from token
-            cursor.execute("SELECT id FROM users WHERE hashed_token = %s", (hashed_token,))
-            user_id = cursor.fetchone()[0]
-
-            # Insert bid into bids table
-            cursor.execute("INSERT INTO bids(post_id, user_id, amount) VALUES (%s, %s, %s)",
-                        (post_id, user_id, amount))
+            cursor.execute("SELECT username FROM users WHERE hashed_token = %s", (hashed_token,))
+            username = cursor.fetchone()[0]
 
             # Update current bid and bidder in posts table
-            cursor.execute("UPDATE posts SET current_bid = %s, current_bidder_id = %s WHERE id = %s",
-                        (amount, user_id, post_id))
+            cursor.execute("UPDATE posts SET current_bid = %s, current_bidder = %s WHERE id = %s", (amount, username, post_id))
             
             db.commit()
             return {"status": "success", "message": "Bid placed successfully", "bid_value": amount, "auction_id": post_id}
@@ -232,3 +227,38 @@ class DatabaseManager:
             return str(e)
         finally:
             cursor.close()
+    
+    def get_ended_auctions_without_winners(self, db):
+        cursor = db.cursor(dictionary=True)
+        query = """
+            SELECT * FROM posts 
+            WHERE end_time < NOW() 
+            AND winner IS NULL 
+            AND current_bid IS NOT NULL
+        """
+        cursor.execute(query)
+        return cursor.fetchall()
+    
+    def update_auction_winner(self, auction_id, db):
+        cursor = db.cursor()
+        
+        # Fetch the highest bidder and bid for the auction
+        query = """
+            SELECT current_bidder, current_bid
+            FROM posts 
+            WHERE id = %s
+        """
+        cursor.execute(query, (auction_id,))
+        result = cursor.fetchone()
+
+        current_bidder = result[0]
+        current_bid = result[1]
+
+        # Set the winner and winning bid for the auction
+        query = """
+            UPDATE posts 
+            SET winner = %s, winning_bid = %s 
+            WHERE id = %s
+        """
+        cursor.execute(query, (current_bidder, current_bid, auction_id))
+        db.commit()
