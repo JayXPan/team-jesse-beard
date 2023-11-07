@@ -202,12 +202,16 @@ async def make_post(
                 if not chunk:
                     break
                 buffer.write(chunk)
-        eastern = pytz.timezone('US/Eastern')
-        end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
+        utc_now = datetime.datetime.now(pytz.utc)
+        end_time_utc = utc_now + datetime.timedelta(minutes=duration)
+        # eastern = pytz.timezone('US/Eastern')
+        # end_time = datetime.datetime.now(eastern) + datetime.timedelta(minutes=duration)
         current_bid = starting_price
         if starting_price > MAX_BID_AMOUNT:
             return JSONResponse(status_code=400, content={"error": "The starting price exceeds the maximum allowed value."})
-        db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time, duration, db)
+        db_manager.insert_post(username, title, description, unique_filename, starting_price, current_bid, end_time_utc, duration, db)
+        eastern = pytz.timezone('US/Eastern')
+        end_time_eastern = end_time_utc.astimezone(eastern)
 
         # Respond with the post details
         response = JSONResponse(
@@ -217,7 +221,7 @@ async def make_post(
              "image": html.escape(image_path),
              "starting_price": starting_price,
              "current_bid": current_bid,
-             "end_time": end_time.isoformat(),
+             "end_time": end_time_eastern.isoformat(),
              "duration": duration})
 
         return response
@@ -239,7 +243,20 @@ Endpoint to retrieve all the posts.
 @app.get("/get-posts/")
 async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     token = request.cookies.get("token")
-    posts = db_manager.get_all_posts(token, db)
+    utc_zone = pytz.utc
+    eastern_zone = pytz.timezone('US/Eastern')
+    posts_data = db_manager.get_all_posts(token, db)
+
+    posts = []
+    for post_tuple in posts_data:
+        post = list(post_tuple)
+
+        if post[8]:
+            # Convert the UTC end_time from the database to Eastern Time
+            eastern_end_time = utc_zone.localize(post[8]).astimezone(eastern_zone)
+            post[8] = eastern_end_time.isoformat()  # Modify the end_time value
+
+        posts.append(post)
 
     # Return a list of post dictionaries with likes count
     return {
@@ -253,7 +270,7 @@ async def get_posts(request: Request, db: mysql.connector.MySQLConnection = Depe
                 "starting_price": post[5],
                 "current_bid": post[6],
                 "current_bidder": post[7],
-                "end_time": post[8].isoformat() if post[8] else None,
+                "end_time": post[8],
                 "duration": post[9],
                 "winner": post[10], 
                 "winning_bid": float(post[11]) if post[11] else None,
@@ -282,6 +299,8 @@ Handles websocket operations.
 @app.websocket("/websocket")
 async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.MySQLConnection = Depends(get_db)):
     await ws_manager.connect(websocket)
+    utc_zone = pytz.utc
+    eastern_zone = pytz.timezone('US/Eastern')
 
     try:
         while True:
@@ -311,12 +330,23 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
                 })
                 await ws_manager.broadcast(data)
             elif message["type"] == "newPostRequest":
-                # Fetch latest post from the database
-                latest_post = db_manager.get_all_posts(token, db)
+                latest_posts = db_manager.get_all_posts(token, db)
+
+                posts = []
+                # Convert end_time of each post from UTC to Eastern Time
+                for post_tuple in latest_posts:
+                    post = list(post_tuple)
+                    if post[8]:
+                        # Convert to Eastern Time
+                        eastern_end_time = utc_zone.localize(post[8]).astimezone(eastern_zone)
+                        # Update the end_time to the ISO format string in Eastern Time
+                        post[8] = eastern_end_time.isoformat()
+                        # Update the original post with the new end_time
+                    posts.append(post)
 
                 data = json.dumps({
                     "type": "newPost",
-                    "post": latest_post
+                    "post": posts
                 }, default=encoder)
                 await ws_manager.broadcast(data)
             else:
