@@ -9,11 +9,12 @@ import bcrypt
 import secrets
 import hashlib
 import html
+import aioredis
 import os
 from util.db_manager import DatabaseManager
 from util.ws_manager import WebSocketManager
-from fastapi import FastAPI, Depends, HTTPException, Request, File, Form, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Depends, HTTPException, Request, File, Form, UploadFile, status
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mysql.connector.pooling import MySQLConnectionPool
@@ -36,7 +37,9 @@ scheduler.start()
 app.mount("/static", StaticFiles(directory="public"), name="static")
 templates = Jinja2Templates(directory="view")
 
-# Set up a connection pool
+"""
+Set up a connection pool
+"""
 dbconfig = {
     "host": "db",
     "user": "root",
@@ -90,25 +93,70 @@ def encoder(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 """
+Event handler for application startup
+"""
+@app.on_event("startup")
+async def startup_event():
+    redis_host = os.environ.get('REDIS_HOST', 'redis')
+    redis_port = os.environ.get('REDIS_PORT', 6379)
+    app.state.redis = await aioredis.from_url(f"redis://{redis_host}:{redis_port}", encoding="utf-8", decode_responses=True)
+
+
+"""
 Event handler for application shutdown
 """
 @app.on_event("shutdown")
-def shutdown_event():
+async def shutdown_event():
     # Shut down the scheduled job to avoid any lingering tasks
     scheduler.shutdown()
 
-"""
-Middleware to add custom headers to HTTP responses.
+    # Close the Redis connection pool
+    if app.state.redis:
+        await app.state.redis.close()
 
-This middleware adds the X-Content-Type-Options header with a value of nosniff to prevent browsers from MIME-sniffing a response away from the declared content-type.
+"""
+Middleware for rate limiting requests per IP address.
+
+- Block requests from an IP address if it has made more than 50 requests within a 10 second period.
+- If an IP is blocked, return a 429 "Too Many Requests" response for 30 seconds.
+- Adds a X-Content-Type-Options: nosniff header to each response for security.
 """
 @app.middleware("http")
-async def add_custom_headers(request, call_next):
+async def custom_middleware(request: Request, call_next):
+    redis = request.app.state.redis
+    client_ip = request.client.host
+    key = f"rate_limit:{client_ip}"
+    
+    try:
+        is_blocked = await redis.get(f"block:{client_ip}")
+        if is_blocked:
+            return PlainTextResponse(
+                "Too Many Requests - You must wait 30 seconds before attempting again", 
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        # Increment the request count for the IP
+        current_count = await redis.incr(key)
+        if current_count == 1:
+            await redis.expire(key, 10)
+        if current_count > 50:
+            # Too many requests, block for 30 seconds
+            await redis.setex(f"block:{client_ip}", 30, "1")
+            return PlainTextResponse("Too Many Requests", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+    # Continue processing the request
     response = await call_next(request)
+
+    # Add custom headers here before returning the response
     response.headers["X-Content-Type-Options"] = "nosniff"
+
     return response
 
-
+"""
+Endpoint to handle the root path.
+"""
 @app.get("/")
 def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     token = request.cookies.get('token')
@@ -116,7 +164,9 @@ def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(ge
 
     return templates.TemplateResponse("index.html", {"request": request, "username": username})
 
-
+"""
+Endpoint to handle the new user registration.
+"""
 @app.post("/register/")
 async def register(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     form_data = await request.form()
@@ -129,7 +179,9 @@ async def register(request: Request, db: mysql.connector.MySQLConnection = Depen
 
     return {"status": "Successfully registered"}
 
-
+"""
+Endpoint to handle the user login.
+"""
 @app.post("/login/")
 async def login(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
     form_data = await request.form()

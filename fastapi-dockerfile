@@ -1,10 +1,10 @@
-FROM tiangolo/uvicorn-gunicorn-fastapi:latest
+FROM tiangolo/uvicorn-gunicorn-fastapi:python3.9
 
 WORKDIR /usr/src/app
 
 COPY . .
 
-RUN pip install fastapi[all] mysql-connector-python bcrypt pytz apscheduler
+RUN pip install fastapi[all] mysql-connector-python bcrypt pytz apscheduler aioredis
 
 ENV WAIT_HOSTS_TIMEOUT=60
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait

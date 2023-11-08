@@ -1,6 +1,10 @@
 version: '3.7'
 
 services:
+  redis:
+      image: "redis:alpine"
+      ports:
+        - "6379:6379"
 
   db:
     build:
@@ -30,6 +34,8 @@ services:
       - DB_USER=root
       - DB_PASSWORD=my-secret-pw
       - DB_NAME=database
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - images-data:/usr/src/app/public/images
 
