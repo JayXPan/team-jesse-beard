@@ -9,5 +9,5 @@ Collaborative project repository for CSE312 Fall 2023 Team Jesse Beard
 3) Beck Evans (beckevan)
 4) James Fatorma (jfatorma)
 
-## Team URL
+## Team APP URL
 Visit [JesseBeard](https://www.jessebeard.me/ "JesseBeard Homepage")
