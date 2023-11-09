@@ -5,6 +5,9 @@ services:
       image: "redis:alpine"
       ports:
         - "6379:6379"
+      volumes:
+        - redis-data:/usr/src/app/redis
+      restart: always
 
   db:
     build:
@@ -18,6 +21,7 @@ services:
       - MYSQL_DATABASE=database
     volumes:
       - database-data:/var/lib/mysql
+    restart: always
 
   fastapi:
     build:
@@ -38,7 +42,9 @@ services:
       - REDIS_PORT=6379
     volumes:
       - images-data:/usr/src/app/public/images
+    restart: always
 
 volumes:
   database-data:
   images-data:
+  redis-data:
