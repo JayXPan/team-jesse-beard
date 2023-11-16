@@ -124,7 +124,8 @@ Middleware for rate limiting requests per IP address.
 @app.middleware("http")
 async def custom_middleware(request: Request, call_next):
     redis = request.app.state.redis
-    client_ip = request.client.host
+    x_forwarded_for = request.headers.get('x-forwarded-for')
+    client_ip = x_forwarded_for.split(',')[0] if x_forwarded_for else request.client.host
     key = f"rate_limit:{client_ip}"
     
     try:
