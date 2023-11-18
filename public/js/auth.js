@@ -1,3 +1,21 @@
+
+document.getElementById('verificationLink').addEventListener('click', function() {
+        // Replace 'your_path' with the actual path you want to request
+        const path = '/verify_email';
+
+        // Send a GET request using fetch
+        fetch(path, {
+            method: 'GET'
+            // You can add headers or other options as needed
+        }).then(function(response) {
+            // Handle the response if needed
+            console.log(response);
+        }).catch(function(error) {
+            // Handle errors if the request fails
+            console.error(error);
+        });
+    });
+
 async function loginUser() {
     const formData = new FormData(document.querySelector('.loginNew form'));
     

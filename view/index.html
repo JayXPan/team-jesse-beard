@@ -21,7 +21,7 @@
 			<ul>
 				<li id="mainTitle"><h1><i>CSE 312 Project 1</i></h1></li>
 				<div id="usernameDisplay">
-					Logged in as: &nbsp;<span id="usernameText">{{ username }}</span>
+					Logged in as: &nbsp;<span id="usernameText">{{ username }} - Email: Not Verified <a href="#" id="verificationLink">Verify Email</a> </span>
 				</div>
 			</ul>
 		</nav>
@@ -41,6 +41,7 @@
 			<div class="registerNew">
 				<p>New to the site? Please register before creating a post!</p>
 				<form action="/register/" method="POST">
+					<input type="email" id="registerEmail" name="email" placeholder="Email" required><br><br>
 					<input id="registerUsername" type="text" name="username" placeholder="Username" required><br>
 					<input type="password" id="registerPassword" name="password" placeholder="Password" required><br><br>
 					<input id="registerButton" type="submit" value="Register">

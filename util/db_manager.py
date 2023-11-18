@@ -15,7 +15,7 @@ class DatabaseManager:
         cursor = db.cursor()
         try:
             cursor.execute(
-                "SELECT username, id FROM users WHERE hashed_token = %s",
+                "SELECT username, id, email, email_verified FROM users WHERE hashed_token = %s",
                 (hashed_token,)
             )
             result = cursor.fetchone()
@@ -50,7 +50,7 @@ class DatabaseManager:
         try:
             cursor = db.cursor()
             cursor.execute(
-                "SELECT username, hashed_password FROM users WHERE username = %s", 
+                "SELECT username, hashed_password, email, email_verified FROM users WHERE username = %s",
                 (username,)
             )
             user = cursor.fetchone()
@@ -69,12 +69,12 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def register_user(self, username, hashed_password, db):
+    def register_user(self, username, hashed_password, email, db):
         cursor = db.cursor()
         try:
             cursor.execute(
-                "INSERT INTO users(username, hashed_password) VALUES (%s, %s)", 
-                (username, hashed_password.decode())
+                "INSERT INTO users(username, hashed_password, email, email_verified) VALUES (%s, %s, %s, %s)",
+                (username, hashed_password.decode(), email, "NO")
             )
             db.commit()
         except mysql.connector.IntegrityError:

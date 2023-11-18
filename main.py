@@ -226,8 +226,30 @@ Endpoint to handle the root path.
 """
 @app.get("/")
 def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
-    token = request.cookies.get('token')
+
+    # Check if the token is present
+    token = request.cookies.get("token")
     username = db_manager.get_username_from_token(token, db)
+
+    if username != 'Guest':
+
+        # Hash the token for database verification
+        hashed_token = hash_token(token)
+        user = db_manager.get_user_from_token(hashed_token, db)
+        username, _, email, email_verified = user
+        if email_verified == "YES":
+            with open('view/index.html', 'r+') as file:
+
+                content = file.read()
+
+                # modify html
+                new_content = content.replace('Email: Not Verified',
+                                              'Email: Verified')
+                file.seek(0)
+
+                # update file
+                file.write(new_content)
+                file.truncate()
 
     return templates.TemplateResponse("index.html", {"request": request, "username": username})
 
@@ -239,12 +261,73 @@ async def register(request: Request, db: mysql.connector.MySQLConnection = Depen
     form_data = await request.form()
     username = html.escape(form_data.get("username"))
     password = form_data.get("password")
+    email = form_data.get("email")
+    print(email)
     
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
-    db_manager.register_user(username, hashed_password, db)
+    db_manager.register_user(username, hashed_password, email, db)
 
     return {"status": "Successfully registered"}
+"""
+Endpoint to handle send email verification.
+"""
+@app.get("/verify_email/")
+async def send_verification(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
+    with open('view/index.html', 'r+') as file:
+
+        content = file.read()
+        if "Email: Verified" in content:
+            return
+
+    # Check if the token is present
+    token = request.cookies.get("token")
+    if token is None:
+        return JSONResponse(status_code=403, content={"error": "Login required to verify email."})
+
+    # Hash the token for database verification
+    hashed_token = hash_token(token)
+    user = db_manager.get_user_from_token(hashed_token, db)
+
+    # grab necessary info
+    if user:
+        _, _, email, _ = user
+    else:
+        return
+
+    # gen url token
+    random_bytes = secrets.token_bytes(10)
+    verification_token = base64.urlsafe_b64encode(random_bytes).decode('utf-8')
+    cursor = db.cursor()
+
+    # update user token
+    try:
+        cursor.execute(
+            "UPDATE users SET verification_token = %s WHERE email = %s",
+            (verification_token, email)
+        )
+        db.commit()
+    finally:
+        cursor.close()
+
+    verification_link = f"http://localhost:8080/verify_clicked?token={verification_token}"
+    send_verification_email(email, verification_link)
+
+"""
+Endpoint to handle completing verification.
+"""
+@app.get("/verify_clicked")
+def verify_clicked(token: str, db: mysql.connector.MySQLConnection = Depends(get_db)):
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            "UPDATE users SET email_verified = %s WHERE verification_token = %s",
+            ("YES", token)
+        )
+        db.commit()
+    finally:
+        cursor.close()
+    return RedirectResponse(url='http://localhost:8080/', status_code=status.HTTP_303_SEE_OTHER)
 
 """
 Endpoint to handle the user login.
@@ -476,36 +559,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
     finally:
         ws_manager.disconnect(websocket)
 
-"""
-Endpoint to request sending a verification email
-"""
-@app.post("/send-verification/")
-async def send_verification(request: Request, user_email: str = Form(...)):
-    # Generate a unique token for the user
-    token = secrets.token_hex(80)
-
-    # Construct the verification URL that the user will visit
-    verification_url = f"https://jessebeard.me/verify-email?token={token}"
-
-    # TODO: Save the token and email to the database for verification later
-
-
-    await asyncio.to_thread(send_verification_email, user_email, verification_url)
-    return JSONResponse(status_code=200, content={"message": "Verification email sent successfully"})
-
-"""
-Endpoint to verify the user's email
-"""
-@app.get("/verify-email/")
-async def verify_email(request: Request, token: str):
-    # TODO: Implement the logic to check if the token is valid and associated with an email
-    # Verification logic here...
-
-    # TODO: If the token is valid, update the user's status to verified
-    # Update user verification status logic here...
-    
-    # Redirect the user to the homepage
-    return RedirectResponse(url='https://jessebeard.me/', status_code=status.HTTP_303_SEE_OTHER)
 
 """
 Schedule the check_ended_auctions function to run at regular intervals (every 5 seconds)
