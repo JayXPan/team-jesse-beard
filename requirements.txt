@@ -1,0 +1,11 @@
+fastapi[all]
+mysql-connector-python
+bcrypt
+pytz
+apscheduler
+aioredis
+python-dotenv
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client

@@ -11,21 +11,34 @@ import hashlib
 import html
 import aioredis
 import os
+import pickle
+import base64
+import asyncio
 from util.db_manager import DatabaseManager
 from util.ws_manager import WebSocketManager
 from fastapi import FastAPI, Depends, HTTPException, Request, File, Form, UploadFile, status
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mysql.connector.pooling import MySQLConnectionPool
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
 from typing import Optional
+from dotenv import load_dotenv
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from googleapiclient.discovery import build
 
 CHUNK_SIZE = 2048
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 MAX_BID_AMOUNT = 99999999.99
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+
 app = FastAPI()
+load_dotenv()
 db_manager = DatabaseManager()
 ws_manager = WebSocketManager()
 executors = {
@@ -91,6 +104,59 @@ def encoder(obj):
     elif isinstance(obj, datetime.datetime):
         return obj.isoformat()
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+"""
+Authenticate with Gmail and get the service object
+"""
+def get_gmail_service():
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    # If there are no valid credentials, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(GoogleAuthRequest())
+        else:
+            # Here we use the environment variable to get the path to the credentials file
+            flow = InstalledAppFlow.from_client_secrets_file(
+                os.getenv('GMAIL_CREDENTIALS_PATH'), SCOPES)
+            creds = flow.run_local_server(port=8000)
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    service = build('gmail', 'v1', credentials=creds)
+    return service
+
+"""
+Function to send a verification email to the user
+"""
+def send_verification_email(user_email, verification_url):
+    service = get_gmail_service()
+    
+    message = MIMEMultipart()
+    message["From"] = "team.jessebeard@gmail.com"
+    message["To"] = user_email
+    message["Subject"] = "Verify your email with Jesse's Beard"
+
+    text = f"""Hi there,\n\nWe're excited to have you join our community at Jesse's Beard!
+    \nTo get started, we just need to confirm your email address. Please click the link below to verify your email and activate your account:
+    \n{verification_url}\n\nIf you didn't sign up for an account with Jesse's Beard, no action is needed - you can safely ignore this email.\n\nThank you for joining us!\n\nBest regards,\nTeam Jesse's Beard
+    """
+
+    message.attach(MIMEText(text, 'plain'))
+
+    # encoded message
+    encoded_message = {'raw': base64.urlsafe_b64encode(message.as_string().encode()).decode()}
+
+    try:
+        # Call the Gmail API to send the email
+        service.users().messages().send(userId="me", body=encoded_message).execute()
+        print("Verification email sent successfully.")
+    except Exception as e:
+        print(f'An error occurred: {e}')
 
 """
 Event handler for application startup
@@ -409,6 +475,37 @@ async def websocket_endpoint(websocket: fastapi.WebSocket, db: mysql.connector.M
         print(f"Error occurred: {e}")
     finally:
         ws_manager.disconnect(websocket)
+
+"""
+Endpoint to request sending a verification email
+"""
+@app.post("/send-verification/")
+async def send_verification(request: Request, user_email: str = Form(...)):
+    # Generate a unique token for the user
+    token = secrets.token_hex(80)
+
+    # Construct the verification URL that the user will visit
+    verification_url = f"https://jessebeard.me/verify-email?token={token}"
+
+    # TODO: Save the token and email to the database for verification later
+
+
+    await asyncio.to_thread(send_verification_email, user_email, verification_url)
+    return JSONResponse(status_code=200, content={"message": "Verification email sent successfully"})
+
+"""
+Endpoint to verify the user's email
+"""
+@app.get("/verify-email/")
+async def verify_email(request: Request, token: str):
+    # TODO: Implement the logic to check if the token is valid and associated with an email
+    # Verification logic here...
+
+    # TODO: If the token is valid, update the user's status to verified
+    # Update user verification status logic here...
+    
+    # Redirect the user to the homepage
+    return RedirectResponse(url='https://jessebeard.me/', status_code=status.HTTP_303_SEE_OTHER)
 
 """
 Schedule the check_ended_auctions function to run at regular intervals (every 5 seconds)
