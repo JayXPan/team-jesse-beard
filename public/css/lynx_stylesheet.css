@@ -210,8 +210,49 @@ body{
     background-color: #0056b3;
 }
 
-.modal-overlay-email{
-	display: none;
+.email-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    display: none;
+}
+
+.email-modal {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    width: 400px;
+    max-width: 90%;
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.email-modal-header {
+    background: #9D4EFF;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid black;
+}
+
+.email-modal-body {
+    background: #424242;
+    padding: 15px;
+    color: white;
+}
+
+.email-modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: black;
+    cursor: pointer;
 }
 
 .modal-overlay {
@@ -259,12 +300,18 @@ body{
     cursor: pointer;
 }
 
-#usernameDisplay {
+#username-email {
+	display: flex;
+    align-items: center;
+	flex-direction: column;
+}
+
+#username-email-Display {
     display: flex;
     align-items: center;
     color: white;
 	font-weight: bold;
-    margin-right: -100px;
+    margin-right: -90px;
     text-shadow: 2px 2px 3px black;
 }
 
@@ -273,17 +320,16 @@ body{
     color: white;
 }
 
-/* .posts {
-	display: flex;
-    width: 95%;
-    max-width: 700px;
-    border: 1px solid #e0e0e0;
-    padding: 20px;
-    margin: 20px auto;
-    background-color: #f5f5f5;
-    box-shadow: rgb(0,0,0) 0.1px 0.1px 2px;
+.verification-button {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 5px 10px;
+    background-color: blue;
+    color: white;
+    text-decoration: none;
     border-radius: 5px;
-} */
+    cursor: pointer;
+}
 
 .posts {
     width: 100%;

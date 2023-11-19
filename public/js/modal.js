@@ -13,13 +13,13 @@ function closeModal() {
 }
 
 function showEmailModal() {
-    const modal = document.querySelector('.modal-overlay-email');
+    const modal = document.querySelector('.email-modal-overlay');
     modal.style.display = 'flex';
 }
 
 // Close the email modal
 function closeEmailModal() {
-    const modal = document.querySelector('.modal-overlay-email');
+    const modal = document.querySelector('.email-modal-overlay');
     modal.style.display = 'none';
 }
 
@@ -48,3 +48,10 @@ function submitEmail() {
         console.error(error);
     });
 }
+
+document.getElementById('email').addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        submitEmail();
+    }
+});

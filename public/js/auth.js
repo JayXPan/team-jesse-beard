@@ -1,15 +1,16 @@
 
-document.getElementById('verificationLink').addEventListener('click', function(event) {
-    event.preventDefault();
-    const line = document.getElementById("usernameText").textContent.trim();
-    const username = line.substring(0, 5);
-    console.log(username)
-    if (username === "Guest") {
-        showModal('Please login to verify email.');
-    } else {
-        showEmailModal();
-    }
+const verificationLink = document.getElementById('verificationLink');
+if (verificationLink) {
+    verificationLink.addEventListener('click', function(event) {
+        event.preventDefault();
+        const username = document.getElementById("usernameText").textContent;
+        if (username === "Guest") {
+            showModal('Please login to verify email.');
+        } else {
+            showEmailModal();
+        }
     });
+}
 
 async function loginUser() {
     const formData = new FormData(document.querySelector('.loginNew form'));
@@ -30,6 +31,12 @@ async function loginUser() {
 
 async function registerUser() {
     const formData = new FormData(document.querySelector('.registerNew form'));
+    const username = formData.get('username');
+
+    if (!username.trim()) {
+        showModal('Please enter a username with characters or numbers.');
+        return;
+    }
     
     const response = await fetch('/register/', {
         method: 'POST',

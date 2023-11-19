@@ -20,8 +20,18 @@
 		<nav>
 			<ul>
 				<li id="mainTitle"><h1><i>CSE 312 Project 1</i></h1></li>
-				<div id="usernameDisplay">
-					Logged in as: &nbsp;<span id="usernameText">{{ username }} - Email: Not Verified <a href="#" id="verificationLink">Verify Email</a> </span>
+				<div id="username-email">
+					<div id="username-email-Display">
+						Logged in as: &nbsp;<span id="usernameText">{{ username }}</span>
+					</div>
+					<div id="username-email-Display">
+						{% if email_verified %}
+							<span>Email: Verified</span>
+						{% else %}
+							<span>Email: Not Verified</span>
+							<a href="#" id="verificationLink" class="verification-button">Verify Email</a>
+						{% endif %}
+					</div>
 				</div>
 			</ul>
 		</nav>
@@ -110,14 +120,18 @@
 
 </div>
 
-<div id="emailModal" class="modal-overlay-email">
-	<div class="modal-content">
-		<span class="close" onclick="closeEmailModal()">&times;</span>
-		<form id="emailForm" action="/submit_email" method="post">
-			<label for="email">Enter Email:</label>
-			<input type="text" id="email" name="email">
-			<button type="button" onclick="submitEmail()">Submit</button>
-		</form>
+<div id="emailModal" class="email-modal-overlay">
+	<div class="email-modal">
+		<div class="email-modal-header">
+			<button class="modal-close-btn" onclick="closeEmailModal()">×</button>
+		</div>
+		<div class="email-modal-body">
+			<form id="emailForm" action="/submit_email" method="post">
+				<label for="email">Enter Email:</label>
+				<input type="text" id="email" name="email">
+				<button type="button" onclick="submitEmail()">Submit</button>
+			</form>
+		</div>
 	</div>
 </div>
 

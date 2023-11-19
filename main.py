@@ -232,27 +232,20 @@ def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(ge
     username = db_manager.get_username_from_token(token, db)
 
     if username != 'Guest':
-
-        # Hash the token for database verification
         hashed_token = hash_token(token)
         user = db_manager.get_user_from_token(hashed_token, db)
         username, _, email, email_verified = user
-        if email_verified == "YES":
-            with open('view/index.html', 'r+') as file:
-
-                content = file.read()
-
-                # modify html
-                new_content = content.replace('Email: Not Verified <a href="#" id="verificationLink">Verify Email</a>',
-                                              'Email: Verified')
-                output_file_path = 'view/index_modified.html'
-
-                with open(output_file_path, 'w') as output_file:
-                    output_file.write(new_content)
-
-                return templates.TemplateResponse("index_modified.html", {"request": request, "username": username})
-
-    return templates.TemplateResponse("index.html", {"request": request, "username": username})
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "username": username,
+            "email_verified": email_verified == "YES"
+        })
+    else:
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "username": "Guest",
+            "email_verified": False
+        })
 
 """
 Endpoint to handle the new user registration.
@@ -268,6 +261,7 @@ async def register(request: Request, db: mysql.connector.MySQLConnection = Depen
     db_manager.register_user(username, hashed_password, db)
 
     return {"status": "Successfully registered"}
+
 """
 Endpoint to handle send email verification.
 """
