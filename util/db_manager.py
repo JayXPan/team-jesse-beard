@@ -69,12 +69,12 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def register_user(self, username, hashed_password, email, db):
+    def register_user(self, username, hashed_password, db):
         cursor = db.cursor()
         try:
             cursor.execute(
-                "INSERT INTO users(username, hashed_password, email, email_verified) VALUES (%s, %s, %s, %s)",
-                (username, hashed_password.decode(), email, "NO")
+                "INSERT INTO users(username, hashed_password) VALUES (%s, %s)",
+                (username, hashed_password.decode())
             )
             db.commit()
         except mysql.connector.IntegrityError:

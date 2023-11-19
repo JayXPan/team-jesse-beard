@@ -243,13 +243,14 @@ def read_root(request: Request, db: mysql.connector.MySQLConnection = Depends(ge
                 content = file.read()
 
                 # modify html
-                new_content = content.replace('Email: Not Verified',
+                new_content = content.replace('Email: Not Verified <a href="#" id="verificationLink">Verify Email</a>',
                                               'Email: Verified')
-                file.seek(0)
+                output_file_path = 'view/index_modified.html'
 
-                # update file
-                file.write(new_content)
-                file.truncate()
+                with open(output_file_path, 'w') as output_file:
+                    output_file.write(new_content)
+
+                return templates.TemplateResponse("index_modified.html", {"request": request, "username": username})
 
     return templates.TemplateResponse("index.html", {"request": request, "username": username})
 
@@ -261,50 +262,39 @@ async def register(request: Request, db: mysql.connector.MySQLConnection = Depen
     form_data = await request.form()
     username = html.escape(form_data.get("username"))
     password = form_data.get("password")
-    email = form_data.get("email")
-    print(email)
     
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
-    db_manager.register_user(username, hashed_password, email, db)
+    db_manager.register_user(username, hashed_password, db)
 
     return {"status": "Successfully registered"}
 """
 Endpoint to handle send email verification.
 """
-@app.get("/verify_email/")
+@app.post("/verify_email/")
 async def send_verification(request: Request, db: mysql.connector.MySQLConnection = Depends(get_db)):
-    with open('view/index.html', 'r+') as file:
+    data = await request.json()
+    email = data.get('email')
+    print("reached here: " + email)
 
-        content = file.read()
-        if "Email: Verified" in content:
-            return
+    # gen url token
+    random_bytes = secrets.token_bytes(80)
+    verification_token = base64.urlsafe_b64encode(random_bytes).decode('utf-8')
+    cursor = db.cursor()
 
     # Check if the token is present
     token = request.cookies.get("token")
     if token is None:
-        return JSONResponse(status_code=403, content={"error": "Login required to verify email."})
+        return JSONResponse(status_code=403, content={"error": "Login required to make a post."})
 
     # Hash the token for database verification
     hashed_token = hash_token(token)
-    user = db_manager.get_user_from_token(hashed_token, db)
-
-    # grab necessary info
-    if user:
-        _, _, email, _ = user
-    else:
-        return
-
-    # gen url token
-    random_bytes = secrets.token_bytes(10)
-    verification_token = base64.urlsafe_b64encode(random_bytes).decode('utf-8')
-    cursor = db.cursor()
 
     # update user token
     try:
         cursor.execute(
-            "UPDATE users SET verification_token = %s WHERE email = %s",
-            (verification_token, email)
+            "UPDATE users SET verification_token = %s, email = %s WHERE hashed_token = %s",
+            (verification_token, email, hashed_token)
         )
         db.commit()
     finally:

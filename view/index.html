@@ -41,7 +41,6 @@
 			<div class="registerNew">
 				<p>New to the site? Please register before creating a post!</p>
 				<form action="/register/" method="POST">
-					<input type="email" id="registerEmail" name="email" placeholder="Email" required><br><br>
 					<input id="registerUsername" type="text" name="username" placeholder="Username" required><br>
 					<input type="password" id="registerPassword" name="password" placeholder="Password" required><br><br>
 					<input id="registerButton" type="submit" value="Register">
@@ -109,6 +108,17 @@
 	</div>
 
 
+</div>
+
+<div id="emailModal" class="modal-overlay-email">
+	<div class="modal-content">
+		<span class="close" onclick="closeEmailModal()">&times;</span>
+		<form id="emailForm" action="/submit_email" method="post">
+			<label for="email">Enter Email:</label>
+			<input type="text" id="email" name="email">
+			<button type="button" onclick="submitEmail()">Submit</button>
+		</form>
+	</div>
 </div>
 
 <div id="modal" class="modal-overlay">

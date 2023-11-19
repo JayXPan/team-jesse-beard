@@ -1,19 +1,14 @@
 
-document.getElementById('verificationLink').addEventListener('click', function() {
-        // Replace 'your_path' with the actual path you want to request
-        const path = '/verify_email';
-
-        // Send a GET request using fetch
-        fetch(path, {
-            method: 'GET'
-            // You can add headers or other options as needed
-        }).then(function(response) {
-            // Handle the response if needed
-            console.log(response);
-        }).catch(function(error) {
-            // Handle errors if the request fails
-            console.error(error);
-        });
+document.getElementById('verificationLink').addEventListener('click', function(event) {
+    event.preventDefault();
+    const line = document.getElementById("usernameText").textContent.trim();
+    const username = line.substring(0, 5);
+    console.log(username)
+    if (username === "Guest") {
+        showModal('Please login to verify email.');
+    } else {
+        showEmailModal();
+    }
     });
 
 async function loginUser() {

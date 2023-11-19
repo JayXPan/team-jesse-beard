@@ -210,6 +210,10 @@ body{
     background-color: #0056b3;
 }
 
+.modal-overlay-email{
+	display: none;
+}
+
 .modal-overlay {
     position: fixed;
     top: 0;
