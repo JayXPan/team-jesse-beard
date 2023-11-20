@@ -294,7 +294,7 @@ async def send_verification(request: Request, db: mysql.connector.MySQLConnectio
     finally:
         cursor.close()
 
-    verification_link = f"http://localhost:8080/verify_clicked?token={verification_token}"
+    verification_link = f"https://jessebeard.me/verify_clicked?token={verification_token}"
     send_verification_email(email, verification_link)
 
 """
@@ -311,7 +311,7 @@ def verify_clicked(token: str, db: mysql.connector.MySQLConnection = Depends(get
         db.commit()
     finally:
         cursor.close()
-    return RedirectResponse(url='http://localhost:8080/', status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url='https://jessebeard.me/', status_code=status.HTTP_303_SEE_OTHER)
 
 """
 Endpoint to handle the user login.
