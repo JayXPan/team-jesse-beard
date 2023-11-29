@@ -19,7 +19,7 @@
 
 		<nav>
 			<ul>
-				<li id="mainTitle"><h1><i>CSE 312 Project 1</i></h1></li>
+				<li id="mainTitle"><h1><i>CSE 312 Project</i></h1></li>
 				<div id="usernameDisplay">
 					Logged in as: &nbsp;<span id="usernameText">{{ username }}</span>
 				</div>
@@ -28,8 +28,8 @@
 
 	</header>
 
-<h1 id="BodyTitle">PostPlace - A Place for Posts</h1>
-<p id="IntroBodyText">Welcome to PostPlace! A site dedicated to hosting your thoughts, ideas, and ramblings to share with the whole world! To get started, register or login with your credentials to create a post. You cannot create a post without an account. Have fun!</p>
+<h1 id="BodyTitle">WePort - Online Auctions Made Easy</h1>
+<p id="IntroBodyText">Welcome to WePort, a site dedicated to buying and selling items with the whole world! To get started, register or login with your credentials to create an auction. You cannot create an auction without an account. Have fun!</p>
 
 <hr id="IntroSeparator">
 
@@ -63,15 +63,15 @@
 
 	<div class="post section" style="margin-right: 450px;">
 		<div class="make-post">
-				<h2>Create a post...</h2>
-				<div id="createPostSubtitle">Creating post as: &nbsp;<span id="createUsernameText">{{ username }}</span></div>
+				<h2>Start an auction...</h2>
+				<div id="createPostSubtitle">Creating auction as: &nbsp;<span id="createUsernameText">{{ username }}</span></div>
 				<form id="make-post" onsubmit="handlePostSubmit(event)" action="/make-post/" method="POST" enctype="multipart/form-data">
 					<label><br/>
-						<input type="text" name="title" placeholder="Post Title"><br/>
+						<input type="text" name="title" placeholder="Item Name"><br/>
 					</label>
 
-	
-					<textarea id="descriptionBox" type="text" name="description" placeholder="Write the body of your post here..."></textarea><br/>
+
+					<textarea id="descriptionBox" type="text" name="description" placeholder="Tell us more about your item. Be descriptive!"></textarea><br/>
 
 
 					<label>Upload Image:<br/>
@@ -82,29 +82,28 @@
 						<input type="number" name="starting_price" min="0" step="0.01"><br/>
 					</label>
 
-					<label>Duration (in minutes):<br/>
+					<label>Auction Duration (in minutes):<br/>
 						<input type="number" name="duration" min="1" step="1"><br/>
 					</label>
 
 					<input type="submit" value="Submit">
 				</form>
 		</div>
-		<div class="posts">
-			<div class="dropdown">
-				<button class="dropbtn" onclick="toggleDropdown('all-posts')">All Auctions</button>
-				<div class="dropdown-content" id="all-posts"></div>
-			</div>
-		
-			<div class="dropdown">
-				<button class="dropbtn" onclick="toggleDropdown('auctions-won')">Auctions Won</button>
-				<div class="dropdown-content" id="auctions-won"></div>
-			</div>
-		
-			<div class="dropdown">
-				<button class="dropbtn" onclick="toggleDropdown('auctions-created')">Auctions Created</button>
-				<div class="dropdown-content" id="auctions-created"></div>
-			</div>
-		</div>
+
+	</div>
+
+	<hr class="mainDivider">
+
+	<div class="auction-section">
+	<button type="button" class="collapsible"><strong>All Auctions ⇂</strong></button>
+		<div class="dropdown-content" id="all-posts"></div>
+
+	<button type="button" class="collapsible"><strong>Auctions Won ⇂</strong></button>
+		<div class="dropdown-content" id="auctions-won"></div>
+
+
+	<button type="button" class="collapsible"><strong>My Auctions ⇂</strong></button>
+		<div class="dropdown-content" id="auctions-created"></div>
 	</div>
 
 

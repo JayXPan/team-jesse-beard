@@ -67,7 +67,7 @@ function displayPosts(posts) {
         postElement.innerHTML = `
             <h3>${post.title}</h3>
             <p>${post.description}</p>
-            <img src="/static/images/${post.image}" alt="${post.title} style="width: 100%; max-height: 100px;">
+            <img src="/static/images/${post.image}" alt="${post.title}" style="width: 40%;">
             <div class="bid-display">
                 <strong>${bidLabel}</strong> <span class="bid-value">$${bidValue}</span>
             </div>
@@ -85,7 +85,7 @@ function displayPosts(posts) {
             >
                 ${post.liked ? 'Dislike' : 'Like'} (${post.likes})
             </button>
-            <footer>Posted by: ${post.username}</footer>
+            <footer>Posted by: ${post.username}<hr class="postDivider"></footer>
         `;
         // Add to All Auctions
         const postCloneForAll = postElement.cloneNode(true);

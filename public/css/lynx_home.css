@@ -53,7 +53,7 @@
 	font-size: 1.2em;
 }
 
-.collapsible {
+.collapsible{
   color: black;
   cursor: pointer;
   padding: 18px;
@@ -73,8 +73,7 @@
 	background-color: rgb(136, 180, 252);
 }
 
-.registerNew,
-.loginNew {
+.registerNew{
   padding: 0 18px;
   display: none;
 
@@ -89,17 +88,38 @@
      transition: max-height 0.2s ease-out;
 }
 
+.loginNew {
+  padding: 0 18px;
+  display: none;
+
+  width: 90%;
+
+    background-color: #f5f5f5;
+	padding-top: 10px;
+
+    border-radius: 5px;
+    box-shadow: rgb(0,0,0) 0.1px 0.1px 2px;
+     transition: max-height 0.2s ease-out;
+}
+
+
 .registerNew > h2,
 .loginNew > h2{
 	margin-bottom: 1px;
 }
 
-.registerNew > p,
-.loginNew > p{
+.registerNew > p{
 
 	font-size: 12px;
 	font-style: italic;
 	margin-bottom: 20px;
+
+}
+
+.loginNew > p{
+
+	font-size: 12px;
+	font-style: italic;
 
 }
 
@@ -125,4 +145,16 @@
     padding: 10px 0 10px 5px;
     border-radius: 5px;
     margin-bottom: 	20px;
+}
+
+.mainDivider{
+	width: 95%;
+	margin-top: 30px;
+	margin-bottom: 30px;
+}
+
+.postDivider{
+
+	margin-top: 20px;
+
 }
