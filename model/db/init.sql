@@ -2,6 +2,9 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     hashed_password VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    email_verified VARCHAR(255) DEFAULT 'NO' NOT NULL,
+    verification_token VARCHAR(255),
     hashed_token VARCHAR(255)
 );
 
